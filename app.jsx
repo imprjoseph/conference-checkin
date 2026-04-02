@@ -640,11 +640,14 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
 // ══════════════════════════════════════════════════════════
 // QR CAMERA SCANNER COMPONENT
 // ══════════════════════════════════════════════════════════
-function QRScanner({onResult,onClose,lang}){
+function QRScanner({onResult,onClose,lang,title}){
   const videoRef=useRef(null);
   const streamRef=useRef(null);
   const rafRef=useRef(null);
+  const cooldownRef=useRef(false);
   const [err,setErr]=useState("");
+  const [lastMsg,setLastMsg]=useState("");
+  const [msgType,setMsgType]=useState("ok");
   const L=lang==="zh";
 
   const stopCamera=()=>{
@@ -665,56 +668,82 @@ function QRScanner({onResult,onClose,lang}){
         scanLoop();
       }
     }catch(e){
-      setErr(L?"無法開啟鏡頭，請手動輸入序號":"Cannot open camera, please enter number manually");
+      setErr(L?"無法開啟鏡頭，請確認已授權相機權限":"Cannot open camera. Please allow camera permission.");
     }
   };
 
   const scanLoop=()=>{
     const video=videoRef.current;
-    if(!video||!streamRef.current){return;}
-    if(video.readyState===video.HAVE_ENOUGH_DATA){
+    if(!video||!streamRef.current) return;
+    if(video.readyState===video.HAVE_ENOUGH_DATA && !cooldownRef.current){
       const canvas=document.createElement("canvas");
       canvas.width=video.videoWidth; canvas.height=video.videoHeight;
       const ctx=canvas.getContext("2d");
       ctx.drawImage(video,0,0,canvas.width,canvas.height);
-      try{
-        // Use BarcodeDetector if available (Chrome/Edge/Android)
-        if("BarcodeDetector" in window){
-          const bd=new BarcodeDetector({formats:["qr_code"]});
-          bd.detect(canvas).then(codes=>{
-            if(codes.length>0){
-              stopCamera();
-              onResult(codes[0].rawValue);
-              return;
+      if("BarcodeDetector" in window){
+        const bd=new BarcodeDetector({formats:["qr_code"]});
+        bd.detect(canvas).then(codes=>{
+          if(codes.length>0 && !cooldownRef.current){
+            cooldownRef.current=true;
+            // 呼叫 onResult，取得回傳訊息後顯示
+            const msg=onResult(codes[0].rawValue);
+            if(msg){
+              setLastMsg(msg.text||"");
+              setMsgType(msg.type||"ok");
             }
-          }).catch(()=>{});
-        }
-      }catch(e){}
+            // 1.5 秒後可再掃下一個
+            setTimeout(()=>{ cooldownRef.current=false; },1500);
+          }
+        }).catch(()=>{});
+      }
     }
     rafRef.current=requestAnimationFrame(scanLoop);
   };
 
   React.useEffect(()=>{ startCamera(); return ()=>stopCamera(); },[]);
 
+  const msgBg={ok:"rgba(34,197,94,0.92)",warn:"rgba(245,158,11,0.92)",error:"rgba(239,68,68,0.92)"};
+
   return React.createElement("div",{style:{position:"fixed",inset:0,background:"#000",zIndex:500,display:"flex",flexDirection:"column"}},
     // Header
-    React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"rgba(0,0,0,0.7)"}},
-      React.createElement("span",{style:{color:"#fff",fontWeight:700,fontSize:14}},L?"掃描 QR Code":"Scan QR Code"),
-      React.createElement("button",{onClick:()=>{stopCamera();onClose();},style:{background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,fontFamily:"inherit"}},L?"關閉":"Close")
+    React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"rgba(0,0,0,0.85)"}},
+      React.createElement("span",{style:{color:"#fff",fontWeight:700,fontSize:14}},title||(L?"連續掃描 QR Code":"Continuous QR Scan")),
+      React.createElement("button",{onClick:()=>{stopCamera();onClose();},style:{background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",borderRadius:8,padding:"7px 16px",fontSize:12,fontWeight:700,fontFamily:"inherit"}},L?"完成":"Done")
     ),
     // Video
     React.createElement("div",{style:{flex:1,position:"relative",overflow:"hidden"}},
       React.createElement("video",{ref:videoRef,style:{width:"100%",height:"100%",objectFit:"cover"},playsInline:true,muted:true}),
-      // Scan frame overlay
+      // Scan frame
       React.createElement("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}},
-        React.createElement("div",{style:{width:220,height:220,border:"3px solid #E8710A",borderRadius:16,boxShadow:"0 0 0 2000px rgba(0,0,0,0.5)"}})
+        React.createElement("div",{style:{position:"relative",width:230,height:230}},
+          // Corner borders (nicer than full border)
+          ...["tl","tr","bl","br"].map(c=>{
+            const isTop=c[0]==="t", isLeft=c[1]==="l";
+            return React.createElement("div",{key:c,style:{position:"absolute",width:36,height:36,
+              top:isTop?0:"auto",bottom:isTop?"auto":0,
+              left:isLeft?0:"auto",right:isLeft?"auto":0,
+              borderTop:isTop?"3px solid #E8710A":"none",
+              borderBottom:isTop?"none":"3px solid #E8710A",
+              borderLeft:isLeft?"3px solid #E8710A":"none",
+              borderRight:isLeft?"none":"3px solid #E8710A",
+              borderRadius:isTop&&isLeft?"8px 0 0 0":isTop&&!isLeft?"0 8px 0 0":!isTop&&isLeft?"0 0 0 8px":"0 0 8px 0"
+            }});
+          }),
+          // Dim overlay outside box
+          React.createElement("div",{style:{position:"fixed",inset:0,boxShadow:"0 0 0 2000px rgba(0,0,0,0.55)",pointerEvents:"none"}})
+        )
       ),
-      React.createElement("p",{style:{position:"absolute",bottom:20,left:0,right:0,textAlign:"center",color:"rgba(255,255,255,0.8)",fontSize:11}},
-        L?"將 QR Code 對準框框內":"Align QR Code within the frame"
+      // Result message (shows after each scan)
+      lastMsg&&React.createElement("div",{style:{position:"absolute",top:16,left:16,right:16,background:msgBg[msgType]||msgBg.ok,color:"#fff",borderRadius:10,padding:"10px 14px",fontSize:13,fontWeight:700,textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,0.4)"}},lastMsg),
+      // Hint
+      React.createElement("div",{style:{position:"absolute",bottom:24,left:0,right:0,textAlign:"center"}},
+        React.createElement("span",{style:{background:"rgba(0,0,0,0.6)",color:"rgba(255,255,255,0.85)",fontSize:10,borderRadius:99,padding:"5px 14px"}},
+          L?"對準框框，自動辨識，可連續掃描":"Auto scan – keep scanning continuously"
+        )
       )
     ),
-    // Error message
-    err&&React.createElement("div",{style:{background:"rgba(239,68,68,0.9)",color:"#fff",padding:"10px 16px",fontSize:11,textAlign:"center"}},err)
+    // Camera error
+    err&&React.createElement("div",{style:{background:"rgba(239,68,68,0.9)",color:"#fff",padding:"12px 16px",fontSize:12,textAlign:"center",fontWeight:600}},err)
   );
 }
 
@@ -791,8 +820,51 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
   return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Noto Sans TC','Noto Sans',sans-serif",display:"flex",flexDirection:"column",maxWidth:480,margin:"0 auto"}},
     React.createElement(Notif),
     // Camera overlays
-    showCam&&React.createElement(QRScanner,{lang,onClose:()=>setShowCam(false),onResult:(val)=>{setShowCam(false);setScanInput(val);setTimeout(()=>{const q=val.trim();const a=findA(q);if(a){const dk=scanDay;if(scanDir==="in"){if(!(a[dk]&&a[dk].ci)){const updated={...a,[dk]:{...a[dk],ci:true,ciT:nowStr()}};setAttendees(p=>p.map(x=>x.id===a.id?updated:x));show(fmtStr(t.ciOK,{n:nOf(a)}));setLastResult({...updated,action:"ci"});syncAtt(a.id,{[dk]:JSON.stringify(updated[dk])},updated);apiPost("addLog",{actor:user.name,action:`Day${dk==="day1"?"1":"2"} 報到`,target:a.name});}else{show(fmtStr(t.alreadyCI,{t:a[dk].ciT}),"warn");}}else{if(a[dk]&&a[dk].ci&&!a[dk].co){const updated={...a,[dk]:{...a[dk],co:true,coT:nowStr()}};setAttendees(p=>p.map(x=>x.id===a.id?updated:x));show(fmtStr(t.coOK,{n:nOf(a)}));setLastResult({...updated,action:"co"});syncAtt(a.id,{[dk]:JSON.stringify(updated[dk])},updated);apiPost("addLog",{actor:user.name,action:`Day${dk==="day1"?"1":"2"} 簽退`,target:a.name});}else if(!a[dk]||!a[dk].ci){show(t.notCIYet,"warn");}else{show(fmtStr(t.alreadyCO,{t:a[dk].coT}),"warn");}}}else{show(t.notFound,"error");}},500)}}),
-    showCamAct&&React.createElement(QRScanner,{lang,onClose:()=>setShowCamAct(false),onResult:(val)=>{setShowCamAct(false);setActInput(val);setTimeout(()=>{const q=val.trim();const a=findA(q);if(a){const key=`${actType}_${actDay==="day1"?"d1":"d2"}`;const lbl={booth:t.booth,lunch:t.lunch,gift:t.gift}[actType];if(a.acts&&a.acts[key]){show(fmtStr(t.alreadyAct,{n:nOf(a),a:lbl}),"warn");}else{const updated={...a,acts:{...a.acts,[key]:true}};setAttendees(p=>p.map(x=>x.id===a.id?updated:x));show(fmtStr(t.actOK,{n:nOf(a),a:lbl}));syncAtt(a.id,{acts:JSON.stringify(updated.acts)},updated);apiPost("addLog",{actor:user.name,action:lbl,target:a.name});}}else{show(t.notFound,"error");}},500)}}),
+    showCam&&React.createElement(QRScanner,{lang,
+      title:L?`${scanDay==="day1"?t.day1:t.day2} ${scanDir==="in"?t.signIn:t.signOut}`:`${scanDay==="day1"?t.day1:t.day2} ${scanDir==="in"?t.signIn:t.signOut}`,
+      onClose:()=>setShowCam(false),
+      onResult:(val)=>{
+        const q=val.trim();
+        const a=findA(q);
+        if(!a) return {text:t.notFound,type:"error"};
+        const dk=scanDay;
+        if(scanDir==="in"){
+          if(a[dk]&&a[dk].ci) return {text:fmtStr(t.alreadyCI,{t:a[dk].ciT}),type:"warn"};
+          const updated={...a,[dk]:{...a[dk],ci:true,ciT:nowStr()}};
+          setAttendees(p=>p.map(x=>x.id===a.id?updated:x));
+          setLastResult({...updated,action:"ci"});
+          syncAtt(a.id,{[dk]:JSON.stringify(updated[dk])},updated);
+          apiPost("addLog",{actor:user.name,action:`Day${dk==="day1"?"1":"2"} 報到`,target:a.name});
+          return {text:`✅ ${nOf(a)} ${t.checkedIn}`,type:"ok"};
+        }else{
+          if(!a[dk]||!a[dk].ci) return {text:t.notCIYet,type:"warn"};
+          if(a[dk].co) return {text:fmtStr(t.alreadyCO,{t:a[dk].coT}),type:"warn"};
+          const updated={...a,[dk]:{...a[dk],co:true,coT:nowStr()}};
+          setAttendees(p=>p.map(x=>x.id===a.id?updated:x));
+          setLastResult({...updated,action:"co"});
+          syncAtt(a.id,{[dk]:JSON.stringify(updated[dk])},updated);
+          apiPost("addLog",{actor:user.name,action:`Day${dk==="day1"?"1":"2"} 簽退`,target:a.name});
+          return {text:`👋 ${nOf(a)} ${t.checkedOut}`,type:"ok"};
+        }
+      }
+    }),
+    showCamAct&&React.createElement(QRScanner,{lang,
+      title:L?`${actDay==="day1"?t.day1:t.day2} ${({booth:t.booth,lunch:t.lunch,gift:t.gift})[actType]}`:`${actDay==="day1"?t.day1:t.day2} ${({booth:t.booth,lunch:t.lunch,gift:t.gift})[actType]}`,
+      onClose:()=>setShowCamAct(false),
+      onResult:(val)=>{
+        const q=val.trim();
+        const a=findA(q);
+        if(!a) return {text:t.notFound,type:"error"};
+        const key=`${actType}_${actDay==="day1"?"d1":"d2"}`;
+        const lbl={booth:t.booth,lunch:t.lunch,gift:t.gift}[actType];
+        if(a.acts&&a.acts[key]) return {text:fmtStr(t.alreadyAct,{n:nOf(a),a:lbl}),type:"warn"};
+        const updated={...a,acts:{...a.acts,[key]:true}};
+        setAttendees(p=>p.map(x=>x.id===a.id?updated:x));
+        syncAtt(a.id,{acts:JSON.stringify(updated.acts)},updated);
+        apiPost("addLog",{actor:user.name,action:lbl,target:a.name});
+        return {text:`✅ ${nOf(a)} ${lbl}`,type:"ok"};
+      }
+    }),
     React.createElement(Header,{lang,setLang,onLogout,accent:STAFF_COL,roleLabel:t.roles.staff,t}),
     React.createElement("div",{style:{display:"flex",background:C.surf,borderBottom:`1px solid ${C.bdr}`,flexShrink:0}},
       [{id:"scan",ico:"📷",l:t.staffTabs.scan},{id:"activity",ico:"🎯",l:t.staffTabs.activity},{id:"query",ico:"🔍",l:t.staffTabs.query}].map(m=>
