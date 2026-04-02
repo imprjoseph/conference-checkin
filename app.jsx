@@ -1,7 +1,7 @@
 // imPR Conference System v4 — app.jsx
-// React + Google Apps Script backend
+// React + Google Apps Script backend — Production Build
 
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useRef } = React;
 
 // ══════════════════════════════════════════════════════════
 // CONFIG & API
@@ -231,19 +231,12 @@ function RegBg(){
 // ══════════════════════════════════════════════════════════
 // LOGIN SCREEN
 // ══════════════════════════════════════════════════════════
-function LoginScreen({onLogin,lang,setLang,gasOK}){
+function LoginScreen({onLogin,lang,setLang}){
   const [email,setEmail]=useState("");
   const [pass,setPass]=useState("");
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
   const t=T[lang];
-
-  const demos=[
-    {e:"admin@impr.com.tw",p:"admin123",col:ADMIN_COL,ico:"🔑",zh:"管理員",en:"Admin"},
-    {e:"staff1@impr.com.tw",p:"staff1",col:STAFF_COL,ico:"📋",zh:"工作同仁",en:"Staff"},
-    {e:"chen@ex.com",p:"vip1001",col:VIP_COL,ico:"👑",zh:"貴賓 VIP",en:"VIP"},
-    {e:"lin@ex.com",p:"reg1002",col:REG_COL,ico:"🎫",zh:"一般",en:"Regular"},
-  ];
 
   const doLogin=async()=>{
     if(!email||!pass){setErr(lang==="zh"?"請輸入帳號和密碼":"Please enter email and password");return;}
@@ -252,7 +245,7 @@ function LoginScreen({onLogin,lang,setLang,gasOK}){
       const res=await api("login",{email:email.trim(),password:pass});
       if(res.ok){ onLogin(res.user,res.secret); }
       else{ setErr(t.loginErr); }
-    }catch(e){ setErr(lang==="zh"?"連線錯誤，請檢查設定":"Connection error"); }
+    }catch(e){ setErr(lang==="zh"?"連線錯誤，請稍後再試":"Connection error, please try again"); }
     finally{ setLoading(false); }
   };
 
@@ -262,44 +255,34 @@ function LoginScreen({onLogin,lang,setLang,gasOK}){
 
     React.createElement("div",{style:{width:"100%",maxWidth:380,position:"relative"}},
       // Logo
-      React.createElement("div",{style:{textAlign:"center",marginBottom:24}},
-        React.createElement("img",{src:IMPR_LOGO,alt:"imPR",style:{height:56,objectFit:"contain",filter:"drop-shadow(0 2px 12px rgba(232,113,10,0.3))"}}),
-        React.createElement("h1",{style:{fontSize:18,fontWeight:800,color:C.text,margin:"10px 0 3px",letterSpacing:"-0.3px"}},t.appName),
-        React.createElement("p",{style:{color:C.muted,fontSize:10}},lang==="zh"?"2025 年度科技論壇":"2025 Tech Forum"),
-        !gasOK&&React.createElement("p",{style:{color:C.amber,fontSize:9,marginTop:6}},lang==="zh"?"⚠️ 未連接 Google Sheet，使用測試模式":"⚠️ No Google Sheet connected, demo mode")
+      React.createElement("div",{style:{textAlign:"center",marginBottom:28}},
+        React.createElement("img",{src:IMPR_LOGO,alt:"imPR",style:{height:64,objectFit:"contain",filter:"drop-shadow(0 2px 16px rgba(232,113,10,0.35))"}}),
+        React.createElement("h1",{style:{fontSize:19,fontWeight:800,color:C.text,margin:"12px 0 4px",letterSpacing:"-0.3px"}},t.appName),
+        React.createElement("p",{style:{color:C.muted,fontSize:11}},lang==="zh"?"2025 年度科技論壇":"2025 Tech Forum")
       ),
-      // Lang
-      React.createElement("div",{style:{display:"flex",justifyContent:"center",marginBottom:16}},
+      // Lang toggle
+      React.createElement("div",{style:{display:"flex",justifyContent:"center",marginBottom:20}},
         React.createElement("div",{style:{display:"flex",background:C.surf,border:`1px solid ${C.bdr}`,borderRadius:8,padding:3}},
-          ["zh","en"].map(l=>React.createElement("button",{key:l,onClick:()=>setLang(l),style:{padding:"4px 14px",background:lang===l?C.brand:"transparent",border:"none",color:lang===l?"#fff":C.muted,borderRadius:6,fontSize:10,fontWeight:700,fontFamily:"inherit"}},l==="zh"?"中文":"EN"))
+          ["zh","en"].map(l=>React.createElement("button",{key:l,onClick:()=>setLang(l),style:{padding:"5px 18px",background:lang===l?C.brand:"transparent",border:"none",color:lang===l?"#fff":C.muted,borderRadius:6,fontSize:11,fontWeight:700,fontFamily:"inherit"}},l==="zh"?"中文":"EN"))
         )
       ),
-      // Form
-      React.createElement("div",{style:{background:C.card,border:`1px solid ${C.bdr}`,borderRadius:14,padding:22}},
-        React.createElement("div",{style:{marginBottom:12}},
-          React.createElement("label",{style:{fontSize:9,color:C.muted,fontWeight:700,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px"}},t.email),
-          React.createElement("input",{type:"email",style:{background:C.surf,border:`1px solid ${C.bdr}`,borderRadius:8,color:C.text,padding:"10px 13px",fontSize:12,outline:"none",width:"100%",boxSizing:"border-box",fontFamily:"inherit"},value:email,onChange:e=>setEmail(e.target.value),onKeyDown:e=>e.key==="Enter"&&doLogin()})
+      // Login form
+      React.createElement("div",{style:{background:C.card,border:`1px solid ${C.bdr}`,borderRadius:14,padding:24}},
+        React.createElement("div",{style:{marginBottom:14}},
+          React.createElement("label",{style:{fontSize:10,color:C.muted,fontWeight:700,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}},t.email),
+          React.createElement("input",{type:"email",autoComplete:"email",style:{background:C.surf,border:`1px solid ${C.bdr}`,borderRadius:8,color:C.text,padding:"11px 13px",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",fontFamily:"inherit"},value:email,onChange:e=>setEmail(e.target.value),onKeyDown:e=>e.key==="Enter"&&doLogin()})
         ),
-        React.createElement("div",{style:{marginBottom:16}},
-          React.createElement("label",{style:{fontSize:9,color:C.muted,fontWeight:700,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px"}},t.password),
-          React.createElement("input",{type:"password",style:{background:C.surf,border:`1px solid ${C.bdr}`,borderRadius:8,color:C.text,padding:"10px 13px",fontSize:12,outline:"none",width:"100%",boxSizing:"border-box",fontFamily:"inherit"},value:pass,onChange:e=>setPass(e.target.value),onKeyDown:e=>e.key==="Enter"&&doLogin()})
+        React.createElement("div",{style:{marginBottom:20}},
+          React.createElement("label",{style:{fontSize:10,color:C.muted,fontWeight:700,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}},t.password),
+          React.createElement("input",{type:"password",autoComplete:"current-password",style:{background:C.surf,border:`1px solid ${C.bdr}`,borderRadius:8,color:C.text,padding:"11px 13px",fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",fontFamily:"inherit"},value:pass,onChange:e=>setPass(e.target.value),onKeyDown:e=>e.key==="Enter"&&doLogin()})
         ),
-        err&&React.createElement("p",{style:{color:C.red,fontSize:10,marginBottom:10,textAlign:"center"}},err),
-        React.createElement("button",{onClick:doLogin,disabled:loading,style:{width:"100%",background:`linear-gradient(135deg,${C.brand},${C.brand}cc)`,color:"#fff",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:loading?"wait":"pointer",fontFamily:"inherit",opacity:loading?0.7:1}},
+        err&&React.createElement("p",{style:{color:C.red,fontSize:11,marginBottom:12,textAlign:"center"}},err),
+        React.createElement("button",{onClick:doLogin,disabled:loading,style:{width:"100%",background:`linear-gradient(135deg,${C.brand},${C.brand}cc)`,color:"#fff",border:"none",borderRadius:10,padding:"13px",fontSize:15,fontWeight:700,cursor:loading?"wait":"pointer",fontFamily:"inherit",opacity:loading?0.7:1,letterSpacing:"0.3px"}},
           loading?React.createElement("span",null,"⟳ ",t.loading):t.login
         )
       ),
-      // Demo
-      React.createElement("div",{style:{marginTop:14}},
-        React.createElement("p",{style:{textAlign:"center",fontSize:9,color:C.muted,marginBottom:8}},t.quickDemo),
-        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
-          demos.map(d=>React.createElement("button",{key:d.e,onClick:()=>{setEmail(d.e);setPass(d.p);},style:{background:`${d.col}0e`,border:`1px solid ${d.col}28`,borderRadius:9,padding:"9px 6px",fontFamily:"inherit",textAlign:"center"}},
-            React.createElement("div",{style:{fontSize:16,marginBottom:2}},d.ico),
-            React.createElement("div",{style:{fontSize:9,fontWeight:700,color:d.col}},lang==="zh"?d.zh:d.en),
-            React.createElement("div",{style:{fontSize:8,color:C.muted,marginTop:1}},d.e)
-          ))
-        ),
-        React.createElement("p",{style:{textAlign:"center",fontSize:8,color:C.muted,marginTop:6}},t.fillClick)
+      React.createElement("p",{style:{textAlign:"center",fontSize:9,color:C.muted,marginTop:16}},
+        lang==="zh"?"© 新動力公共關係顧問股份有限公司":"© Impetus Public Relations Consultants Co., Ltd."
       )
     )
   );
@@ -969,17 +952,14 @@ function App(){
   const [attendees,setAttendees]=useState([]);
   const [users,setUsers]=useState([]);
   const [logs,setLogs]=useState([]);
-  const [loadState,setLoadState]=useState("init"); // init|loading|ok|fail
-  const [gasOK,setGasOK]=useState(false);
+  const [loadState,setLoadState]=useState("login"); // login | loading | ok
   const t=T[lang];
 
-  // Test GAS connection on mount
-  useEffect(()=>{
-    if(!GAS||GAS==="YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL"){
-      setGasOK(false); setLoadState("ok"); return;
-    }
-    api("ping").then(r=>{setGasOK(r&&r.ok);setLoadState("ok");}).catch(()=>{setGasOK(false);setLoadState("ok");});
-  },[]);
+  const Spinner=()=>React.createElement("div",{style:{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'Noto Sans TC',sans-serif"}},
+    React.createElement("img",{src:IMPR_LOGO,alt:"imPR",style:{height:52,objectFit:"contain"}}),
+    React.createElement("div",{style:{color:C.brand,fontWeight:700,fontSize:14}},t.loading),
+    React.createElement("div",{style:{width:36,height:36,border:`3px solid ${C.bdr}`,borderTopColor:C.brand,borderRadius:"50%",animation:"spin 1s linear infinite"}})
+  );
 
   const handleLogin=async(user,sec)=>{
     setCurrentUser(user); setSecret(sec);
@@ -993,25 +973,19 @@ function App(){
       if(Array.isArray(atts)) setAttendees(atts);
       if(Array.isArray(usrs)) setUsers(usrs);
       if(Array.isArray(lgz)) setLogs(lgz);
-      setLoadState("ok");
-    }catch(e){
-      setLoadState("ok"); // use empty arrays
-    }
-    apiPost("addLog",{actor:user.name,action:"login",target:"system"});
+    }catch(e){ /* continue with empty */ }
+    setLoadState("ok");
+    apiPost("addLog",{actor:user.name,action:"login",target:"system"}).catch(()=>{});
   };
 
   const handleLogout=()=>{
-    if(currentUser) apiPost("addLog",{actor:currentUser.name,action:"logout",target:"system"});
+    apiPost("addLog",{actor:currentUser?.name||"",action:"logout",target:"system"}).catch(()=>{});
     setCurrentUser(null); setAttendees([]); setUsers([]); setLogs([]);
+    setLoadState("login");
   };
 
-  if(loadState==="init"||loadState==="loading") return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16,fontFamily:"'Noto Sans TC',sans-serif"}},
-    React.createElement("img",{src:IMPR_LOGO,alt:"imPR",style:{height:50,objectFit:"contain"}}),
-    React.createElement("div",{style:{color:C.brand,fontWeight:700,fontSize:14}},t.loading),
-    React.createElement("div",{style:{width:36,height:36,border:`3px solid ${C.bdr}`,borderTopColor:C.brand,borderRadius:"50%",animation:"spin 1s linear infinite"}})
-  );
-
-  if(!currentUser) return React.createElement(LoginScreen,{onLogin:handleLogin,lang,setLang,gasOK});
+  if(loadState==="login") return React.createElement(LoginScreen,{onLogin:handleLogin,lang,setLang});
+  if(loadState==="loading") return React.createElement(Spinner);
 
   if(currentUser.role==="admin") return React.createElement(AdminView,{user:currentUser,secret,attendees,setAttendees,users,setUsers,logs,setLogs,lang,setLang,onLogout:handleLogout});
   if(currentUser.role==="staff") return React.createElement(StaffView,{user:currentUser,secret,attendees,setAttendees,lang,setLang,onLogout:handleLogout});
