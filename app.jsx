@@ -16,17 +16,26 @@ async function api(action, params = {}) {
   const url = new URL(GAS);
   url.searchParams.set("action", action);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString());
-  return res.json();
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    redirect: "follow",
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const text = await res.text();
+  return JSON.parse(text);
 }
 
 async function apiPost(action, data = {}) {
+  // GAS POST: Content-Type 必須是 text/plain，避免 preflight
   const res = await fetch(GAS, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    redirect: "follow",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({ action, secret: SEC, data }),
   });
-  return res.json();
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const text = await res.text();
+  return JSON.parse(text);
 }
 
 
@@ -629,12 +638,95 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
 // ══════════════════════════════════════════════════════════
 // STAFF VIEW
 // ══════════════════════════════════════════════════════════
+// QR CAMERA SCANNER COMPONENT
+// ══════════════════════════════════════════════════════════
+function QRScanner({onResult,onClose,lang}){
+  const videoRef=useRef(null);
+  const streamRef=useRef(null);
+  const rafRef=useRef(null);
+  const [err,setErr]=useState("");
+  const L=lang==="zh";
+
+  const stopCamera=()=>{
+    if(rafRef.current) cancelAnimationFrame(rafRef.current);
+    if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop());
+    streamRef.current=null;
+  };
+
+  const startCamera=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}}
+      });
+      streamRef.current=stream;
+      if(videoRef.current){
+        videoRef.current.srcObject=stream;
+        videoRef.current.play();
+        scanLoop();
+      }
+    }catch(e){
+      setErr(L?"無法開啟鏡頭，請手動輸入序號":"Cannot open camera, please enter number manually");
+    }
+  };
+
+  const scanLoop=()=>{
+    const video=videoRef.current;
+    if(!video||!streamRef.current){return;}
+    if(video.readyState===video.HAVE_ENOUGH_DATA){
+      const canvas=document.createElement("canvas");
+      canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+      const ctx=canvas.getContext("2d");
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      try{
+        // Use BarcodeDetector if available (Chrome/Edge/Android)
+        if("BarcodeDetector" in window){
+          const bd=new BarcodeDetector({formats:["qr_code"]});
+          bd.detect(canvas).then(codes=>{
+            if(codes.length>0){
+              stopCamera();
+              onResult(codes[0].rawValue);
+              return;
+            }
+          }).catch(()=>{});
+        }
+      }catch(e){}
+    }
+    rafRef.current=requestAnimationFrame(scanLoop);
+  };
+
+  React.useEffect(()=>{ startCamera(); return ()=>stopCamera(); },[]);
+
+  return React.createElement("div",{style:{position:"fixed",inset:0,background:"#000",zIndex:500,display:"flex",flexDirection:"column"}},
+    // Header
+    React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"rgba(0,0,0,0.7)"}},
+      React.createElement("span",{style:{color:"#fff",fontWeight:700,fontSize:14}},L?"掃描 QR Code":"Scan QR Code"),
+      React.createElement("button",{onClick:()=>{stopCamera();onClose();},style:{background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",borderRadius:8,padding:"6px 14px",fontSize:12,fontWeight:700,fontFamily:"inherit"}},L?"關閉":"Close")
+    ),
+    // Video
+    React.createElement("div",{style:{flex:1,position:"relative",overflow:"hidden"}},
+      React.createElement("video",{ref:videoRef,style:{width:"100%",height:"100%",objectFit:"cover"},playsInline:true,muted:true}),
+      // Scan frame overlay
+      React.createElement("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}},
+        React.createElement("div",{style:{width:220,height:220,border:"3px solid #E8710A",borderRadius:16,boxShadow:"0 0 0 2000px rgba(0,0,0,0.5)"}})
+      ),
+      React.createElement("p",{style:{position:"absolute",bottom:20,left:0,right:0,textAlign:"center",color:"rgba(255,255,255,0.8)",fontSize:11}},
+        L?"將 QR Code 對準框框內":"Align QR Code within the frame"
+      )
+    ),
+    // Error message
+    err&&React.createElement("div",{style:{background:"rgba(239,68,68,0.9)",color:"#fff",padding:"10px 16px",fontSize:11,textAlign:"center"}},err)
+  );
+}
+
+// ══════════════════════════════════════════════════════════
 function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
   const [mode,setMode]=useState("scan");
   const [scanInput,setScanInput]=useState(""); const [scanDay,setScanDay]=useState("day1"); const [scanDir,setScanDir]=useState("in");
   const [actInput,setActInput]=useState(""); const [actDay,setActDay]=useState("day1"); const [actType,setActType]=useState("booth");
   const [query,setQuery]=useState(""); const [qRes,setQRes]=useState(null);
   const [lastResult,setLastResult]=useState(null);
+  const [showCam,setShowCam]=useState(false);
+  const [showCamAct,setShowCamAct]=useState(false);
   const {show,Notif}=useNotif();
   const t=T[lang]; const s=mkS(STAFF_COL); const L=lang==="zh";
 
@@ -698,6 +790,9 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
 
   return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Noto Sans TC','Noto Sans',sans-serif",display:"flex",flexDirection:"column",maxWidth:480,margin:"0 auto"}},
     React.createElement(Notif),
+    // Camera overlays
+    showCam&&React.createElement(QRScanner,{lang,onClose:()=>setShowCam(false),onResult:(val)=>{setShowCam(false);setScanInput(val);setTimeout(()=>{const q=val.trim();const a=findA(q);if(a){const dk=scanDay;if(scanDir==="in"){if(!(a[dk]&&a[dk].ci)){const updated={...a,[dk]:{...a[dk],ci:true,ciT:nowStr()}};setAttendees(p=>p.map(x=>x.id===a.id?updated:x));show(fmtStr(t.ciOK,{n:nOf(a)}));setLastResult({...updated,action:"ci"});syncAtt(a.id,{[dk]:JSON.stringify(updated[dk])},updated);apiPost("addLog",{actor:user.name,action:`Day${dk==="day1"?"1":"2"} 報到`,target:a.name});}else{show(fmtStr(t.alreadyCI,{t:a[dk].ciT}),"warn");}}else{if(a[dk]&&a[dk].ci&&!a[dk].co){const updated={...a,[dk]:{...a[dk],co:true,coT:nowStr()}};setAttendees(p=>p.map(x=>x.id===a.id?updated:x));show(fmtStr(t.coOK,{n:nOf(a)}));setLastResult({...updated,action:"co"});syncAtt(a.id,{[dk]:JSON.stringify(updated[dk])},updated);apiPost("addLog",{actor:user.name,action:`Day${dk==="day1"?"1":"2"} 簽退`,target:a.name});}else if(!a[dk]||!a[dk].ci){show(t.notCIYet,"warn");}else{show(fmtStr(t.alreadyCO,{t:a[dk].coT}),"warn");}}}else{show(t.notFound,"error");}},500)}}),
+    showCamAct&&React.createElement(QRScanner,{lang,onClose:()=>setShowCamAct(false),onResult:(val)=>{setShowCamAct(false);setActInput(val);setTimeout(()=>{const q=val.trim();const a=findA(q);if(a){const key=`${actType}_${actDay==="day1"?"d1":"d2"}`;const lbl={booth:t.booth,lunch:t.lunch,gift:t.gift}[actType];if(a.acts&&a.acts[key]){show(fmtStr(t.alreadyAct,{n:nOf(a),a:lbl}),"warn");}else{const updated={...a,acts:{...a.acts,[key]:true}};setAttendees(p=>p.map(x=>x.id===a.id?updated:x));show(fmtStr(t.actOK,{n:nOf(a),a:lbl}));syncAtt(a.id,{acts:JSON.stringify(updated.acts)},updated);apiPost("addLog",{actor:user.name,action:lbl,target:a.name});}}else{show(t.notFound,"error");}},500)}}),
     React.createElement(Header,{lang,setLang,onLogout,accent:STAFF_COL,roleLabel:t.roles.staff,t}),
     React.createElement("div",{style:{display:"flex",background:C.surf,borderBottom:`1px solid ${C.bdr}`,flexShrink:0}},
       [{id:"scan",ico:"📷",l:t.staffTabs.scan},{id:"activity",ico:"🎯",l:t.staffTabs.activity},{id:"query",ico:"🔍",l:t.staffTabs.query}].map(m=>
@@ -719,7 +814,16 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
             React.createElement("button",{onClick:()=>setScanDir("in"),style:{flex:1,padding:"7px",background:scanDir==="in"?C.green:"transparent",border:"none",color:scanDir==="in"?"#fff":C.muted,borderRadius:6,fontSize:11,fontWeight:700,fontFamily:"inherit"}},"↓ ",t.signIn),
             React.createElement("button",{onClick:()=>setScanDir("out"),style:{flex:1,padding:"7px",background:scanDir==="out"?C.violet:"transparent",border:"none",color:scanDir==="out"?"#fff":C.muted,borderRadius:6,fontSize:11,fontWeight:700,fontFamily:"inherit"}},"↑ ",t.signOut)
           ),
-          React.createElement("input",{style:{...s.inp,fontSize:13,padding:"11px 13px",textAlign:"center"},autoFocus:true,placeholder:t.scanPlaceholder,value:scanInput,onChange:e=>setScanInput(e.target.value),onKeyDown:e=>e.key==="Enter"&&handleScan()}),
+          // Camera button
+          React.createElement("button",{onClick:()=>setShowCam(true),style:{width:"100%",background:`linear-gradient(135deg,${C.teal},#0d9488)`,color:"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}},
+            React.createElement("span",{style:{fontSize:20}},"📷"),L?"開啟鏡頭掃描":"Open Camera to Scan"
+          ),
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
+            React.createElement("div",{style:{flex:1,height:1,background:C.bdr}}),
+            React.createElement("span",{style:{fontSize:9,color:C.muted}},L?"或手動輸入":"or enter manually"),
+            React.createElement("div",{style:{flex:1,height:1,background:C.bdr}})
+          ),
+          React.createElement("input",{style:{...s.inp,fontSize:13,padding:"11px 13px",textAlign:"center"},placeholder:t.scanPlaceholder,value:scanInput,onChange:e=>setScanInput(e.target.value),onKeyDown:e=>e.key==="Enter"&&handleScan()}),
           React.createElement("button",{onClick:handleScan,style:{...s.btn(scanDir==="in"?"success":"primary"),width:"100%",justifyContent:"center",marginTop:9,padding:"11px"}},scanDir==="in"?`✓ ${L?"確認報到":"Check In"}`:`↑ ${L?"確認簽退":"Check Out"}`)
         ),
         lastResult&&React.createElement("div",{style:{background:C.card,border:`1px solid ${attCol(lastResult)}30`,borderRadius:10,padding:12,marginBottom:10}},
@@ -761,6 +865,14 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
                 React.createElement("div",{style:{fontSize:8,fontWeight:700,color:actType===ac.id?ac.col:C.muted,marginTop:3}},ac.l)
               )
             )
+          ),
+          React.createElement("button",{onClick:()=>setShowCamAct(true),style:{width:"100%",background:`linear-gradient(135deg,${C.teal},#0d9488)`,color:"#fff",border:"none",borderRadius:10,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}},
+            React.createElement("span",{style:{fontSize:20}},"📷"),L?"開啟鏡頭掃描":"Open Camera to Scan"
+          ),
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}},
+            React.createElement("div",{style:{flex:1,height:1,background:C.bdr}}),
+            React.createElement("span",{style:{fontSize:9,color:C.muted}},L?"或手動輸入":"or enter manually"),
+            React.createElement("div",{style:{flex:1,height:1,background:C.bdr}})
           ),
           React.createElement("input",{style:{...s.inp,fontSize:13,padding:"11px 13px",textAlign:"center"},placeholder:t.scanPlaceholder,value:actInput,onChange:e=>setActInput(e.target.value),onKeyDown:e=>e.key==="Enter"&&handleActivity()}),
           React.createElement("button",{onClick:handleActivity,style:{...s.btn("teal"),width:"100%",justifyContent:"center",marginTop:9,padding:"11px"}},"✓ ",L?"確認記錄":"Confirm")
