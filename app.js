@@ -577,10 +577,10 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
                     :React.createElement("button",{style:{...s.btn("amber",true),fontSize:8},onClick:()=>updateAtt(a.id,{manualCollected:true})},t.markCollect)
                   :React.createElement("span",{style:{color:C.muted,fontSize:9}},"—")
                 ),
-                ...["day1","day2"].flatMap(dk=>[
-                  React.createElement("td",{key:dk+"i",style:s.td},a[dk]&&a[dk].ci?React.createElement("div",null,React.createElement("span",{style:{...s.badge(C.green),fontSize:8}},"✓"),React.createElement("div",{style:{fontSize:7,color:C.muted}},a[dk].ciT)):React.createElement("span",{style:{color:C.muted}},"—")),
-                  React.createElement("td",{key:dk+"o",style:s.td},a[dk]&&a[dk].co?React.createElement("div",null,React.createElement("span",{style:{...s.badge(C.violet),fontSize:8}},"✓"),React.createElement("div",{style:{fontSize:7,color:C.muted}},a[dk].coT)):React.createElement("span",{style:{color:C.muted}},"—")),
-                ]),
+                React.createElement(React.Fragment,{key:"d1i"},React.createElement("td",{style:s.td},a["day1"]&&a["day1"].ci?React.createElement("div",null,React.createElement("span",{style:{...s.badge(C.green),fontSize:8}},"✓"),React.createElement("div",{style:{fontSize:7,color:C.muted}},a["day1"].ciT)):React.createElement("span",{style:{color:C.muted}},"—"))),
+              React.createElement(React.Fragment,{key:"d1o"},React.createElement("td",{style:s.td},a["day1"]&&a["day1"].co?React.createElement("div",null,React.createElement("span",{style:{...s.badge(C.violet),fontSize:8}},"✓"),React.createElement("div",{style:{fontSize:7,color:C.muted}},a["day1"].coT)):React.createElement("span",{style:{color:C.muted}},"—"))),
+              React.createElement(React.Fragment,{key:"d2i"},React.createElement("td",{style:s.td},a["day2"]&&a["day2"].ci?React.createElement("div",null,React.createElement("span",{style:{...s.badge(C.green),fontSize:8}},"✓"),React.createElement("div",{style:{fontSize:7,color:C.muted}},a["day2"].ciT)):React.createElement("span",{style:{color:C.muted}},"—"))),
+              React.createElement(React.Fragment,{key:"d2o"},React.createElement("td",{style:s.td},a["day2"]&&a["day2"].co?React.createElement("div",null,React.createElement("span",{style:{...s.badge(C.violet),fontSize:8}},"✓"),React.createElement("div",{style:{fontSize:7,color:C.muted}},a["day2"].coT)):React.createElement("span",{style:{color:C.muted}},"—"))),
                 React.createElement("td",{style:s.td},React.createElement("button",{style:{...s.btn("primary",true),fontSize:8},onClick:()=>setDetailM(a)},"QR"))
               ))
             )
@@ -615,7 +615,7 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
         // Event info card
         React.createElement("div",{style:s.card},
           React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"⚙️ ",L?"活動資訊設定":"Event Info"),
-          ...[
+          ...(()=>[
             {k:"nameZh",l:"活動名稱（中文）"},
             {k:"nameEn",l:"Event Name (English)"},
             {k:"date",l:L?"活動日期":"Date"},
@@ -624,7 +624,7 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
           ].map(f=>React.createElement("div",{key:f.k,style:{marginBottom:9}},
             React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},f.l),
             React.createElement("input",{style:s.inp,value:emailEventInfo[f.k]||"",onChange:e=>setEmailEventInfo(p=>({...p,[f.k]:e.target.value}))})
-          ))
+          )))()
         ),
 
         // Filter & language card
@@ -750,14 +750,14 @@ Language: ${emailLang==="both"?"Bilingual":emailLang==="zh"?"Chinese":"English"}
       tab==="email"&&React.createElement("div",null,
         React.createElement("div",{style:s.card},
           React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"⚙️ ",L?"活動資訊":"Event Info"),
-          ...[
+          ...(()=>[
             {k:"nameZh",l:"活動名稱（中文）"},{k:"nameEn",l:"Event Name (EN)"},
             {k:"date",l:L?"日期":"Date"},{k:"venue",l:L?"地點":"Venue"},
             {k:"senderName",l:L?"寄件人":"Sender Name"},
           ].map(f=>React.createElement("div",{key:f.k,style:{marginBottom:9}},
             React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},f.l),
             React.createElement("input",{style:s.inp,value:emailEventInfo[f.k]||"",onChange:e=>setEmailEventInfo(p=>({...p,[f.k]:e.target.value}))})
-          ))
+          )))()
         ),
         React.createElement("div",{style:s.card},
           React.createElement("div",{style:{...s.sTitle,marginBottom:10}},"🎯 ",L?"收件對象":"Recipients"),
@@ -1068,19 +1068,14 @@ function QRScanner({onResult,onClose,lang,title}){
       // Scan frame
       React.createElement("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}},
         React.createElement("div",{style:{position:"relative",width:230,height:230}},
-          // Corner borders (nicer than full border)
-          ...["tl","tr","bl","br"].map(c=>{
-            const isTop=c[0]==="t", isLeft=c[1]==="l";
-            return React.createElement("div",{key:c,style:{position:"absolute",width:36,height:36,
-              top:isTop?0:"auto",bottom:isTop?"auto":0,
-              left:isLeft?0:"auto",right:isLeft?"auto":0,
-              borderTop:isTop?"3px solid #E8710A":"none",
-              borderBottom:isTop?"none":"3px solid #E8710A",
-              borderLeft:isLeft?"3px solid #E8710A":"none",
-              borderRight:isLeft?"none":"3px solid #E8710A",
-              borderRadius:isTop&&isLeft?"8px 0 0 0":isTop&&!isLeft?"0 8px 0 0":!isTop&&isLeft?"0 0 0 8px":"0 0 8px 0"
-            }});
-          }),
+          // Corner borders - top-left
+          React.createElement("div",{style:{position:"absolute",width:36,height:36,top:0,left:0,borderTop:"3px solid #E8710A",borderLeft:"3px solid #E8710A",borderRadius:"8px 0 0 0"}}),
+          // top-right
+          React.createElement("div",{style:{position:"absolute",width:36,height:36,top:0,right:0,borderTop:"3px solid #E8710A",borderRight:"3px solid #E8710A",borderRadius:"0 8px 0 0"}}),
+          // bottom-left
+          React.createElement("div",{style:{position:"absolute",width:36,height:36,bottom:0,left:0,borderBottom:"3px solid #E8710A",borderLeft:"3px solid #E8710A",borderRadius:"0 0 0 8px"}}),
+          // bottom-right
+          React.createElement("div",{style:{position:"absolute",width:36,height:36,bottom:0,right:0,borderBottom:"3px solid #E8710A",borderRight:"3px solid #E8710A",borderRadius:"0 0 8px 0"}}),
           // Dim overlay outside box
           React.createElement("div",{style:{position:"fixed",inset:0,boxShadow:"0 0 0 2000px rgba(0,0,0,0.55)",pointerEvents:"none"}})
         )
@@ -1321,20 +1316,22 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
           ),
           React.createElement("img",{src:makeQR(`CONF2025-${qRes.checkInNo}-${qRes.email}`,120),alt:"QR",style:{width:120,height:120,borderRadius:8,border:`1px solid ${attCol(qRes)}30`,display:"block",margin:"0 auto 12px"}}),
           React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
-            ...["day1","day2"].flatMap(dk=>[
-              {l:`${dk==="day1"?t.day1:t.day2} ${t.signIn}`,v:qRes[dk]&&qRes[dk].ci?`✓ ${qRes[dk].ciT}`:L?"未報到":"Not CI",col:qRes[dk]&&qRes[dk].ci?C.green:C.muted},
-              {l:`${dk==="day1"?t.day1:t.day2} ${t.signOut}`,v:qRes[dk]&&qRes[dk].co?`✓ ${qRes[dk].coT}`:L?"未簽退":"Not CO",col:qRes[dk]&&qRes[dk].co?C.violet:C.muted},
+            ...(()=>[
+              {l:`${t.day1} ${t.signIn}`,v:qRes["day1"]&&qRes["day1"].ci?`✓ ${qRes["day1"].ciT}`:L?"未報到":"Not CI",col:qRes["day1"]&&qRes["day1"].ci?C.green:C.muted},
+              {l:`${t.day1} ${t.signOut}`,v:qRes["day1"]&&qRes["day1"].co?`✓ ${qRes["day1"].coT}`:L?"未簽退":"Not CO",col:qRes["day1"]&&qRes["day1"].co?C.violet:C.muted},
+              {l:`${t.day2} ${t.signIn}`,v:qRes["day2"]&&qRes["day2"].ci?`✓ ${qRes["day2"].ciT}`:L?"未報到":"Not CI",col:qRes["day2"]&&qRes["day2"].ci?C.green:C.muted},
+              {l:`${t.day2} ${t.signOut}`,v:qRes["day2"]&&qRes["day2"].co?`✓ ${qRes["day2"].coT}`:L?"未簽退":"Not CO",col:qRes["day2"]&&qRes["day2"].co?C.violet:C.muted},
             ].map(f=>React.createElement("div",{key:f.l,style:{background:C.surf,borderRadius:7,padding:"7px 9px"}},
               React.createElement("div",{style:{fontSize:8,color:C.muted}},f.l),
               React.createElement("div",{style:{fontSize:9,color:f.col,fontWeight:600,marginTop:2}},f.v)
-            ))),
-            ...["booth","lunch","gift"].flatMap(ac=>["d1","d2"].map(d=>{
+            )))(),
+            ...(()=>["booth","lunch","gift"].flatMap(ac=>["d1","d2"].map(d=>{
               const done=qRes.acts&&qRes.acts[`${ac}_${d}`];
               return React.createElement("div",{key:ac+d,style:{background:C.surf,borderRadius:7,padding:"7px 9px"}},
                 React.createElement("div",{style:{fontSize:8,color:C.muted}},d==="d1"?t.day1:t.day2," ",{booth:t.booth,lunch:t.lunch,gift:t.gift}[ac]),
                 React.createElement("div",{style:{fontSize:11,color:done?C.green:C.muted,fontWeight:700}},done?"✓":"—")
               );
-            }))
+            })))()
           )
         ),
         React.createElement("div",{style:s.card},
