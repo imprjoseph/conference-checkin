@@ -741,7 +741,7 @@ Language: ${emailLang==="both"?"Bilingual":emailLang==="zh"?"Chinese":"English"}
           attendees.slice(0,20).map(a=>React.createElement("div",{key:a.id,style:{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px solid ${C.bdr}`}},
             a.type==="vip"&&React.createElement("span",{style:{fontSize:11}},"👑"),
             React.createElement("code",{style:{color:a.type==="vip"?VIP_COL:REG_COL,fontSize:8,minWidth:65}},a.checkInNo),
-            React.createElement("span",{style:{flex:1,fontSize:10}}},lang==="zh"?a.name:a.nameEn||a.name),
+            React.createElement("span",{style:{flex:1,fontSize:10}},lang==="zh"?a.name:a.nameEn||a.name),
             React.createElement("span",{style:{...s.badge(a.reminderSent?C.green:C.muted),fontSize:8}},a.reminderSent?(L?"✓ 已寄":"✓ Sent"):(L?"未寄":"Pending"))
           ))
         )
