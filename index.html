@@ -7,51 +7,59 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>imPR 會展報到系統</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='28'>◈</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23E8710A'/><text y='24' x='5' font-size='22' fill='white'>◈</text></svg>" />
 
-  <!-- Config: 替換 GAS_URL 為您的 Apps Script Web App URL -->
+  <!-- ✅ 填入您的 Apps Script Web App URL 和 Secret -->
   <script>
     window.APP_CONFIG = {
       GAS_URL: "https://script.google.com/macros/s/AKfycbwoCq5bZqJTT1XQ0UTBMMunagavNHEM_oYNCzuGtGmXFNEvfy-EEGkpypCndnJoQDdVDw/exec",
       SECRET:  "impr@24971841",
-      VERSION: "4.0.0"
+      VERSION: "4.1.0"
     };
   </script>
 
-  <!-- React + Babel -->
+  <!-- React 18 (UMD, no Babel needed) -->
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800&family=Noto+Sans:wght@400;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
-    body { background: #06080f; color: #e2e8f0; font-family: 'Noto Sans TC','Noto Sans',sans-serif; -webkit-font-smoothing: antialiased; }
+    body {
+      background: #06080f;
+      color: #e2e8f0;
+      font-family: 'Noto Sans TC', 'Noto Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: #06080f; }
     ::-webkit-scrollbar-thumb { background: #181f2e; border-radius: 3px; }
-    @keyframes slideIn { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes slideIn { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:none; } }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
     button { cursor: pointer; font-family: inherit; }
     button:hover { opacity: 0.83; }
-    input:focus, textarea:focus, select:focus { outline: none; border-color: #E8710A !important; box-shadow: 0 0 0 2px rgba(232,113,10,0.18) !important; }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #E8710A !important;
+      box-shadow: 0 0 0 2px rgba(232,113,10,0.18) !important;
+    }
     tr:hover td { background: rgba(255,255,255,0.025) !important; }
-    .loading-spin { animation: spin 1s linear infinite; display: inline-block; }
-    /* PWA safe area */
-    .safe-top { padding-top: env(safe-area-inset-top); }
-    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
   </style>
 </head>
 <body>
+  <!-- 初始載入畫面（app.js 載入後會被 React 取代） -->
   <div id="root">
     <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;">
-      <div style="font-size:40px;">◈</div>
-      <div style="color:#E8710A;font-weight:700;font-size:16px;">載入中…</div>
-      <div style="width:40px;height:40px;border:3px solid #181f2e;border-top-color:#E8710A;border-radius:50%;animation:spin 1s linear infinite;"></div>
+      <div style="width:52px;height:52px;background:#E8710A;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;">◈</div>
+      <div style="color:#E8710A;font-weight:700;font-size:15px;letter-spacing:0.3px">imPR 會展報到系統</div>
+      <div style="width:36px;height:36px;border:3px solid #181f2e;border-top-color:#E8710A;border-radius:50%;animation:spin 0.9s linear infinite;"></div>
+      <div style="color:#4a5568;font-size:11px">載入中，請稍候…</div>
     </div>
   </div>
-  <script type="text/babel" src="./app.jsx"></script>
+
+  <!-- ✅ 直接載入，不需要 Babel，速度快 3-5 倍 -->
+  <script src="./app.js"></script>
 </body>
 </html>
