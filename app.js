@@ -540,6 +540,16 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
               React.createElement("button",{style:s.btn("amber"),onClick:()=>setAddStaffM(true)},"➕ ",t.addStaff),
               React.createElement("button",{style:s.btn("ghost"),onClick:()=>setImportM(true)},"📥 ",t.importData),
               React.createElement("button",{style:s.btn("ghost"),onClick:sendAllReminders},"📧 ",t.sendReminder),
+              React.createElement("button",{style:s.btn("teal"),onClick:()=>{
+                const dlQR=(a)=>{
+                  const data="CONF2025-"+a.checkInNo+"-"+a.email;
+                  const url="https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl="+encodeURIComponent(data)+"&choe=UTF-8&chld=M|2";
+                  const link=document.createElement("a");
+                  link.href=url; link.download=a.checkInNo+".png"; link.target="_blank"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                };
+                if(!window.confirm(L?`下載 ${attendees.length} 個 QR Code 圖片（每張間隔 0.5 秒）？\n\n瀏覽器詢問允許多重下載時請按「允許」`:`Download ${attendees.length} QR Code images?`)) return;
+                attendees.forEach((a,i)=>setTimeout(()=>dlQR(a),i*500));
+              }},L?"⬇ QR Code 全下載":"⬇ Download QR Codes"),
               React.createElement("button",{style:s.btn("ghost"),onClick:()=>setTab("logs")},"📝 ",t.auditLog)
             )
           )
