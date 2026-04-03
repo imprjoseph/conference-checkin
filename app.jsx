@@ -51,6 +51,67 @@ const C = {
 };
 const VIP_COL=C.gold, REG_COL=C.blue, ADMIN_COL=C.brand, STAFF_COL=C.cyan;
 
+// ── 預設信件範本（HTML，供管理員「載入預設範本」使用）──────────
+const DEFAULT_TMPL_ZH=`<div style="font-family:'Noto Sans TC',Arial,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb">
+  <div style="background:#06080f;padding:24px 32px;text-align:center">
+    <h1 style="margin:0;color:#fff;font-size:18px">{{eventName}}</h1>
+    <p style="margin:8px 0 0;color:#9ca3af;font-size:12px">📅 {{date}} &nbsp;📍 {{venue}}</p>
+  </div>
+  <div style="padding:28px 32px">
+    <p style="font-size:15px;color:#111">親愛的 {{name}} 您好，</p>
+    <p style="font-size:14px;color:#374151;line-height:1.7">感謝您報名參加 <strong>{{eventName}}</strong>。請於活動當天出示此信件或 QR Code 給工作人員掃描完成報到。</p>
+    <div style="text-align:center;margin:20px 0">
+      <p style="margin:0 0 6px;font-size:12px;color:#6b7280">報到序號</p>
+      <div style="display:inline-block;background:#06080f;border-radius:10px;padding:10px 24px">
+        <span style="font-size:24px;font-weight:800;letter-spacing:3px;color:#E8710A">{{checkInNo}}</span>
+      </div>
+    </div>
+    <div style="text-align:center;margin:20px 0">
+      <p style="margin:0 0 8px;font-size:12px;color:#6b7280">掃描 QR Code 報到</p>
+      {{qrCode}}
+    </div>
+    <ul style="color:#6b7280;font-size:13px;line-height:1.8;padding-left:18px">
+      <li>請提前 15 分鐘抵達活動現場辦理報到</li>
+      <li>報到時出示此 QR Code 或告知序號 <strong>{{checkInNo}}</strong></li>
+      <li>如有疑問請聯繫主辦單位</li>
+    </ul>
+  </div>
+  <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:16px 32px;text-align:center">
+    <p style="margin:0;font-size:11px;color:#9ca3af">{{sender}}</p>
+    <p style="margin:4px 0 0;font-size:10px;color:#d1d5db">此為系統自動發送，請勿回覆</p>
+  </div>
+</div>`;
+
+const DEFAULT_TMPL_EN=`<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb">
+  <div style="background:#06080f;padding:24px 32px;text-align:center">
+    <h1 style="margin:0;color:#fff;font-size:18px">{{eventName}}</h1>
+    <p style="margin:8px 0 0;color:#9ca3af;font-size:12px">📅 {{date}} &nbsp;📍 {{venue}}</p>
+  </div>
+  <div style="padding:28px 32px">
+    <p style="font-size:15px;color:#111">Dear {{name}},</p>
+    <p style="font-size:14px;color:#374151;line-height:1.7">Thank you for registering for <strong>{{eventName}}</strong>. Please present this email or QR Code to our staff for check-in.</p>
+    <div style="text-align:center;margin:20px 0">
+      <p style="margin:0 0 6px;font-size:12px;color:#6b7280">Check-in Number</p>
+      <div style="display:inline-block;background:#06080f;border-radius:10px;padding:10px 24px">
+        <span style="font-size:24px;font-weight:800;letter-spacing:3px;color:#E8710A">{{checkInNo}}</span>
+      </div>
+    </div>
+    <div style="text-align:center;margin:20px 0">
+      <p style="margin:0 0 8px;font-size:12px;color:#6b7280">Scan QR Code to Check In</p>
+      {{qrCode}}
+    </div>
+    <ul style="color:#6b7280;font-size:13px;line-height:1.8;padding-left:18px">
+      <li>Please arrive 15 minutes early for check-in</li>
+      <li>Show this QR Code or provide number <strong>{{checkInNo}}</strong></li>
+      <li>Contact the organizer for any inquiries</li>
+    </ul>
+  </div>
+  <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:16px 32px;text-align:center">
+    <p style="margin:0;font-size:11px;color:#9ca3af">{{sender}}</p>
+    <p style="margin:4px 0 0;font-size:10px;color:#d1d5db">This is an automated email. Please do not reply.</p>
+  </div>
+</div>`;
+
 // ══════════════════════════════════════════════════════════
 // i18n
 // ══════════════════════════════════════════════════════════
@@ -312,6 +373,14 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
   const [saving,setSaving]=useState(false);
   const [newStaff,setNewStaff]=useState({name:"",email:"",password:"",org:""});
   const [newAtt,setNewAtt]=useState({name:"",nameEn:"",email:"",org:"",title:"",phone:"",diet:"normal",session:"full",type:"regular"});
+  const [emailLang,setEmailLang]=useState("both");
+  const [emailFilter,setEmailFilter]=useState("all"); // all|vip|regular
+  const [emailSending,setEmailSending]=useState(false);
+  const [emailResult,setEmailResult]=useState(null);
+  const [emailEventInfo,setEmailEventInfo]=useState({nameZh:"2025 年度科技論壇",nameEn:"2025 Tech Forum",date:"2025-11-15",venue:"台北國際會議中心 / Taipei International Convention Center",senderName:"新動力公共關係顧問股份有限公司"});
+  const [emailTmplZh,setEmailTmplZh]=useState("");
+  const [emailTmplEn,setEmailTmplEn]=useState("");
+  const [showTmpl,setShowTmpl]=useState(false);
   const {show,Notif}=useNotif();
   const t=T[lang]; const s=mkS(ADMIN_COL); const L=lang==="zh";
 
@@ -411,6 +480,7 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
   const TABS=[
     {id:"dashboard",ico:"📊",l:t.tabs.dashboard},
     {id:"attendees",ico:"👥",l:t.tabs.attendees},
+    {id:"email",ico:"📧",l:L?"寄信":"Email"},
     {id:"staff",ico:"🏷️",l:t.tabs.staff},
     {id:"logs",ico:"📝",l:t.tabs.logs},
   ];
@@ -541,7 +611,289 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
         )
       ),
 
-      tab==="logs"&&React.createElement("div",{style:s.card},
+      tab==="email"&&React.createElement("div",null,
+        // Event info card
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"⚙️ ",L?"活動資訊設定":"Event Info"),
+          ...[
+            {k:"nameZh",l:"活動名稱（中文）"},
+            {k:"nameEn",l:"Event Name (English)"},
+            {k:"date",l:L?"活動日期":"Date"},
+            {k:"venue",l:L?"活動地點":"Venue"},
+            {k:"senderName",l:L?"寄件人名稱":"Sender Name"},
+          ].map(f=>React.createElement("div",{key:f.k,style:{marginBottom:9}},
+            React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},f.l),
+            React.createElement("input",{style:s.inp,value:emailEventInfo[f.k]||"",onChange:e=>setEmailEventInfo(p=>({...p,[f.k]:e.target.value}))})
+          ))
+        ),
+
+        // Filter & language card
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"🎯 ",L?"收件對象與語言":"Recipients & Language"),
+
+          // Recipient filter
+          React.createElement("div",{style:{marginBottom:14}},
+            React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}},L?"收件對象":"Recipients"),
+            React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},
+              [{v:"all",zh:"全部與會者",en:"All Attendees",col:ADMIN_COL},
+               {v:"vip",zh:"👑 貴賓 VIP",en:"👑 VIP Only",col:VIP_COL},
+               {v:"regular",zh:"🎫 一般與會者",en:"🎫 Regular Only",col:REG_COL},
+               {v:"unsent",zh:"📭 未寄過",en:"📭 Not Sent Yet",col:C.teal},
+              ].map(opt=>React.createElement("button",{key:opt.v,onClick:()=>setEmailFilter(opt.v),style:{padding:"6px 14px",background:emailFilter===opt.v?`${opt.col}18`:"transparent",border:`1px solid ${emailFilter===opt.v?opt.col:C.bdr}`,color:emailFilter===opt.v?opt.col:C.muted,borderRadius:99,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}},
+                L?opt.zh:opt.en
+              ))
+            )
+          ),
+
+          // Language selector
+          React.createElement("div",{style:{marginBottom:14}},
+            React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}},L?"信件語言":"Email Language"),
+            React.createElement("div",{style:{display:"flex",gap:6}},
+              [{v:"both",zh:"中英雙語",en:"Bilingual",col:ADMIN_COL},
+               {v:"zh",zh:"僅中文",en:"Chinese Only",col:C.blue},
+               {v:"en",zh:"僅英文",en:"English Only",col:C.violet},
+              ].map(opt=>React.createElement("button",{key:opt.v,onClick:()=>setEmailLang(opt.v),style:{padding:"6px 14px",background:emailLang===opt.v?`${opt.col}18`:"transparent",border:`1px solid ${emailLang===opt.v?opt.col:C.bdr}`,color:emailLang===opt.v?opt.col:C.muted,borderRadius:99,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}},
+                L?opt.zh:opt.en
+              ))
+            )
+          ),
+
+          // Preview count
+          React.createElement("div",{style:{background:C.surf,borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+            React.createElement("span",{style:{fontSize:11,color:C.muted}},L?"預計寄出：":"Will send to:"),
+            React.createElement("span",{style:{fontSize:16,fontWeight:800,color:ADMIN_COL}},
+              attendees.filter(a=>{
+                if(emailFilter==="vip") return a.type==="vip";
+                if(emailFilter==="regular") return a.type==="regular";
+                if(emailFilter==="unsent") return !a.reminderSent;
+                return true;
+              }).length,
+              React.createElement("span",{style:{fontSize:11,color:C.muted,fontWeight:400,marginLeft:4}},L?"位":"recipients")
+            )
+          ),
+
+          // Send button
+          React.createElement("button",{
+            onClick:async()=>{
+              if(emailSending) return;
+              const targets=attendees.filter(a=>{
+                if(emailFilter==="vip") return a.type==="vip";
+                if(emailFilter==="regular") return a.type==="regular";
+                if(emailFilter==="unsent") return !a.reminderSent;
+                return true;
+              });
+              if(targets.length===0){show(L?"沒有符合條件的與會者":"No matching attendees","warn");return;}
+              const confirmed=window.confirm(L?`確定要寄送 ${targets.length} 封提醒信？
+
+語言：${emailLang==="both"?"中英雙語":emailLang==="zh"?"中文":"英文"}`:`Send ${targets.length} reminder emails?
+
+Language: ${emailLang==="both"?"Bilingual":emailLang==="zh"?"Chinese":"English"}`);
+              if(!confirmed) return;
+              setEmailSending(true); setEmailResult(null);
+              try{
+                const res=await apiPost("sendEmails",{
+                  ids:targets.map(a=>a.id),
+                  lang:emailLang,
+                  eventInfo:emailEventInfo
+                });
+                if(res.ok){
+                  setEmailResult(res);
+                  setAttendees(p=>p.map(a=>targets.find(t=>t.id===a.id)?{...a,reminderSent:true}:a));
+                  show(L?`✅ 成功寄出 ${res.sent} 封！`:`✅ Sent ${res.sent} emails!`);
+                  apiPost("addLog",{actor:user.name,action:`寄發提醒信 ${res.sent} 封`,target:emailFilter});
+                }else{ show(res.error||"Error","error"); }
+              }catch(e){ show(L?"寄信失敗，請稍後再試":"Send failed","error"); }
+              finally{ setEmailSending(false); }
+            },
+            disabled:emailSending,
+            style:{...s.btn("primary"),width:"100%",justifyContent:"center",padding:"13px",fontSize:13,opacity:emailSending?0.7:1}
+          },
+            emailSending
+              ?React.createElement("span",null,"⟳ ",L?"寄送中，請稍候…":"Sending, please wait…")
+              :React.createElement("span",null,"📧 ",L?"立即寄送提醒信":"Send Reminder Emails Now")
+          )
+        ),
+
+        // Result
+        emailResult&&React.createElement("div",{style:{...s.card,border:`1px solid ${C.green}30`}},
+          React.createElement("div",{style:{...s.sTitle,color:C.green}},"✅ ",L?"寄送結果":"Send Result"),
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:emailResult.errors&&emailResult.errors.length?12:0}},
+            [{l:L?"成功":"Sent",v:emailResult.sent,col:C.green},
+             {l:L?"略過":"Skipped",v:emailResult.skipped,col:C.muted},
+             {l:L?"失敗":"Failed",v:(emailResult.errors||[]).length,col:C.red},
+            ].map(x=>React.createElement("div",{key:x.l,style:{background:`${x.col}0e`,border:`1px solid ${x.col}20`,borderRadius:8,padding:"10px",textAlign:"center"}},
+              React.createElement("div",{style:{fontSize:22,fontWeight:800,color:x.col}},x.v),
+              React.createElement("div",{style:{fontSize:9,color:C.muted}},x.l)
+            ))
+          ),
+          emailResult.errors&&emailResult.errors.length>0&&React.createElement("div",{style:{background:`${C.red}0a`,border:`1px solid ${C.red}20`,borderRadius:8,padding:"10px 12px",fontSize:10,color:C.red}},
+            emailResult.errors.map((e,i)=>React.createElement("div",{key:i},e))
+          )
+        ),
+
+        // History list
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:10}},"📋 ",L?"與會者提醒信狀態":"Reminder Status"),
+          React.createElement("div",{style:{display:"flex",gap:6,marginBottom:10}},
+            React.createElement("span",{style:{...s.badge(C.green),fontSize:10}},L?"已寄":"Sent"," ",attendees.filter(a=>a.reminderSent).length),
+            React.createElement("span",{style:{...s.badge(C.muted),fontSize:10}},L?"未寄":"Pending"," ",attendees.filter(a=>!a.reminderSent).length)
+          ),
+          attendees.slice(0,20).map(a=>React.createElement("div",{key:a.id,style:{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px solid ${C.bdr}`}},
+            a.type==="vip"&&React.createElement("span",{style:{fontSize:11}},"👑"),
+            React.createElement("code",{style:{color:a.type==="vip"?VIP_COL:REG_COL,fontSize:8,minWidth:65}},a.checkInNo),
+            React.createElement("span",{style:{flex:1,fontSize:10}}},lang==="zh"?a.name:a.nameEn||a.name),
+            React.createElement("span",{style:{...s.badge(a.reminderSent?C.green:C.muted),fontSize:8}},a.reminderSent?(L?"✓ 已寄":"✓ Sent"):(L?"未寄":"Pending"))
+          ))
+        )
+      ),
+
+      tab==="email"&&React.createElement("div",null,
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"⚙️ ",L?"活動資訊":"Event Info"),
+          ...[
+            {k:"nameZh",l:"活動名稱（中文）"},{k:"nameEn",l:"Event Name (EN)"},
+            {k:"date",l:L?"日期":"Date"},{k:"venue",l:L?"地點":"Venue"},
+            {k:"senderName",l:L?"寄件人":"Sender Name"},
+          ].map(f=>React.createElement("div",{key:f.k,style:{marginBottom:9}},
+            React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},f.l),
+            React.createElement("input",{style:s.inp,value:emailEventInfo[f.k]||"",onChange:e=>setEmailEventInfo(p=>({...p,[f.k]:e.target.value}))})
+          ))
+        ),
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:10}},"🎯 ",L?"收件對象":"Recipients"),
+          React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}},
+            [{v:"all",zh:"全部",en:"All",col:ADMIN_COL},{v:"vip",zh:"👑 貴賓",en:"👑 VIP",col:VIP_COL},
+             {v:"regular",zh:"🎫 一般",en:"🎫 Regular",col:REG_COL},{v:"unsent",zh:"📭 未寄過",en:"📭 Not Sent",col:C.teal}
+            ].map(opt=>React.createElement("button",{key:opt.v,onClick:()=>setEmailFilter(opt.v),style:{padding:"6px 13px",background:emailFilter===opt.v?`${opt.col}18`:"transparent",border:`1px solid ${emailFilter===opt.v?opt.col:C.bdr}`,color:emailFilter===opt.v?opt.col:C.muted,borderRadius:99,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}},L?opt.zh:opt.en))
+          ),
+          React.createElement("div",{style:{...s.sTitle,marginBottom:10}},"🌐 ",L?"信件語言":"Language"),
+          React.createElement("div",{style:{display:"flex",gap:6,marginBottom:14}},
+            [{v:"both",zh:"中英雙語",en:"Bilingual",col:ADMIN_COL},{v:"zh",zh:"僅中文",en:"Chinese",col:C.blue},{v:"en",zh:"僅英文",en:"English",col:C.violet}
+            ].map(opt=>React.createElement("button",{key:opt.v,onClick:()=>setEmailLang(opt.v),style:{padding:"6px 13px",background:emailLang===opt.v?`${opt.col}18`:"transparent",border:`1px solid ${emailLang===opt.v?opt.col:C.bdr}`,color:emailLang===opt.v?opt.col:C.muted,borderRadius:99,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}},L?opt.zh:opt.en))
+          ),
+        ),
+        // ── Template editor card ─────────────────────────────────
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+            React.createElement("div",{style:s.sTitle},"✍️ ",L?"自訂信件範本（選填）":"Custom Email Template (Optional)"),
+            React.createElement("button",{onClick:()=>setShowTmpl(p=>!p),style:{...s.btn("ghost",true),fontSize:9}},showTmpl?(L?"收起":"Hide"):(L?"展開編輯":"Edit"))
+          ),
+          // 佔位符說明
+          React.createElement("div",{style:{background:`${C.cyan}0a`,border:`1px solid ${C.cyan}20`,borderRadius:8,padding:"9px 12px",marginBottom:10,fontSize:9,color:C.subtle,lineHeight:1.7}},
+            React.createElement("b",{style:{color:C.cyan}},L?"可用佔位符：":"Available placeholders:"),React.createElement("br"),
+            "{{name}} {{nameEn}} {{nameZh}} {{checkInNo}} {{type}}",React.createElement("br"),
+            "{{org}} {{title}} {{eventName}} {{date}} {{venue}}",React.createElement("br"),
+            React.createElement("span",{style:{color:C.brand}},"{{qrCode}}"),L?" — 嵌入 QR Code 圖片":" — Embed QR Code image",React.createElement("br"),
+            React.createElement("span",{style:{color:C.amber}},"{{qrUrl}}"),L?" — QR Code 圖片網址":" — QR Code image URL",React.createElement("br"),
+            L?"📌 留空則使用預設精美範本":"📌 Leave empty to use default template"
+          ),
+          showTmpl&&React.createElement(React.Fragment,null,
+            // Chinese template
+            React.createElement("div",{style:{marginBottom:12}},
+              React.createElement("label",{style:{fontSize:10,color:C.muted,fontWeight:700,display:"block",marginBottom:5}},
+                "🇹🇼 ",L?"中文信件範本（HTML）":"Chinese Template (HTML)"
+              ),
+              React.createElement("textarea",{
+                style:{...s.inp,height:180,resize:"vertical",fontFamily:"monospace",fontSize:10,lineHeight:1.6},
+                placeholder:L?"<p>親愛的 {{name}} 您好，</p>\n<p>感謝報名 {{eventName}}，您的報到序號為 <b>{{checkInNo}}</b></p>\n{{qrCode}}\n<p>日期：{{date}}</p>\n<p>地點：{{venue}}</p>"
+                            :"<p>Dear {{name}},</p>\nYour check-in: <b>{{checkInNo}}</b>\n{{qrCode}}",
+                value:emailTmplZh,
+                onChange:e=>setEmailTmplZh(e.target.value)
+              }),
+              React.createElement("div",{style:{display:"flex",gap:6,marginTop:5}},
+                React.createElement("button",{style:{...s.btn("ghost",true),fontSize:9},onClick:()=>setEmailTmplZh("")},L?"清除":"Clear"),
+                React.createElement("button",{style:{...s.btn("primary",true),fontSize:9},onClick:()=>setEmailTmplZh(DEFAULT_TMPL_ZH)},L?"載入預設範本":"Load Default")
+              )
+            ),
+            // English template
+            React.createElement("div",null,
+              React.createElement("label",{style:{fontSize:10,color:C.muted,fontWeight:700,display:"block",marginBottom:5}},
+                "🇬🇧 ",L?"英文信件範本（HTML）":"English Template (HTML)"
+              ),
+              React.createElement("textarea",{
+                style:{...s.inp,height:180,resize:"vertical",fontFamily:"monospace",fontSize:10,lineHeight:1.6},
+                placeholder:"<p>Dear {{name}},</p>\n<p>Thank you for registering for {{eventName}}.</p>\n<p>Your check-in number: <b>{{checkInNo}}</b></p>\n{{qrCode}}\n<p>Date: {{date}} | Venue: {{venue}}</p>",
+                value:emailTmplEn,
+                onChange:e=>setEmailTmplEn(e.target.value)
+              }),
+              React.createElement("div",{style:{display:"flex",gap:6,marginTop:5}},
+                React.createElement("button",{style:{...s.btn("ghost",true),fontSize:9},onClick:()=>setEmailTmplEn("")},L?"清除":"Clear"),
+                React.createElement("button",{style:{...s.btn("primary",true),fontSize:9},onClick:()=>setEmailTmplEn(DEFAULT_TMPL_EN)},L?"載入預設範本":"Load Default")
+              )
+            )
+          )
+        ),
+        // ── Recipients & send card ───────────────────────────────
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:10}},"🎯 ",L?"收件對象":"Recipients"),
+          React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}},
+            [{v:"all",zh:"全部",en:"All",col:ADMIN_COL},{v:"vip",zh:"👑 貴賓",en:"👑 VIP",col:VIP_COL},
+             {v:"regular",zh:"🎫 一般",en:"🎫 Regular",col:REG_COL},{v:"unsent",zh:"📭 未寄過",en:"📭 Not Sent",col:C.teal}
+            ].map(opt=>React.createElement("button",{key:opt.v,onClick:()=>setEmailFilter(opt.v),style:{padding:"6px 13px",background:emailFilter===opt.v?`${opt.col}18`:"transparent",border:`1px solid ${emailFilter===opt.v?opt.col:C.bdr}`,color:emailFilter===opt.v?opt.col:C.muted,borderRadius:99,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}},L?opt.zh:opt.en))
+          ),
+          React.createElement("div",{style:{...s.sTitle,marginBottom:10}},"🌐 ",L?"預設語言（users表可覆寫）":"Default Language (overridden by users sheet)"),
+          React.createElement("div",{style:{fontSize:9,color:C.muted,marginBottom:8}},L?"💡 在 Google Sheet users 表的 emailLang 欄位填入 zh / en / both 可個別設定每人語言":"💡 Set emailLang column in users sheet to zh/en/both to override per person"),
+          React.createElement("div",{style:{display:"flex",gap:6,marginBottom:14}},
+            [{v:"both",zh:"中英雙語",en:"Bilingual",col:ADMIN_COL},{v:"zh",zh:"僅中文",en:"Chinese",col:C.blue},{v:"en",zh:"僅英文",en:"English",col:C.violet}
+            ].map(opt=>React.createElement("button",{key:opt.v,onClick:()=>setEmailLang(opt.v),style:{padding:"6px 13px",background:emailLang===opt.v?`${opt.col}18`:"transparent",border:`1px solid ${emailLang===opt.v?opt.col:C.bdr}`,color:emailLang===opt.v?opt.col:C.muted,borderRadius:99,fontSize:11,fontWeight:700,fontFamily:"inherit",cursor:"pointer"}},L?opt.zh:opt.en))
+          ),
+          React.createElement("div",{style:{background:C.surf,borderRadius:8,padding:"10px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}},
+            React.createElement("span",{style:{fontSize:11,color:C.muted}},L?"預計寄出":"Will send to"),
+            React.createElement("span",{style:{fontSize:18,fontWeight:800,color:ADMIN_COL}},
+              attendees.filter(a=>emailFilter==="vip"?a.type==="vip":emailFilter==="regular"?a.type==="regular":emailFilter==="unsent"?!a.reminderSent:true).length,
+              React.createElement("span",{style:{fontSize:10,color:C.muted,marginLeft:4}},L?"位":"ppl")
+            )
+          ),
+          React.createElement("button",{
+            disabled:emailSending,
+            style:{...s.btn("primary"),width:"100%",justifyContent:"center",padding:"13px",fontSize:13,opacity:emailSending?0.7:1},
+            onClick:async()=>{
+              if(emailSending) return;
+              const targets=attendees.filter(a=>emailFilter==="vip"?a.type==="vip":emailFilter==="regular"?a.type==="regular":emailFilter==="unsent"?!a.reminderSent:true);
+              if(!targets.length){show(L?"沒有符合條件的收件人":"No recipients","warn");return;}
+              if(!window.confirm(L?`確定寄出 ${targets.length} 封提醒信？`:`Send ${targets.length} reminder emails?`)) return;
+              setEmailSending(true); setEmailResult(null);
+              try{
+                const res=await apiPost("sendEmails",{ids:targets.map(a=>a.id),lang:emailLang,eventInfo:emailEventInfo,tmplZh:emailTmplZh||null,tmplEn:emailTmplEn||null});
+                if(res.ok){
+                  setEmailResult(res);
+                  setAttendees(p=>p.map(a=>targets.find(t=>t.id===a.id)?{...a,reminderSent:true}:a));
+                  show(L?`✅ 成功寄出 ${res.sent} 封`:`✅ Sent ${res.sent}`);
+                  apiPost("addLog",{actor:user.name,action:`寄信 ${res.sent} 封`,target:emailFilter});
+                }else show(res.error||"Error","error");
+              }catch(e){show(L?"寄信失敗":"Failed","error");}
+              setEmailSending(false);
+            }
+          }, emailSending?`⟳ ${L?"寄送中…":"Sending…"}`:`📧 ${L?"立即寄送":"Send Now"}`)
+        ),
+        emailResult&&React.createElement("div",{style:{...s.card,border:`1px solid ${C.green}30`}},
+          React.createElement("div",{style:{...s.sTitle,color:C.green}},"✅ ",L?"寄送結果":"Result"),
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}},
+            [{l:L?"成功":"Sent",v:emailResult.sent,col:C.green},{l:L?"略過":"Skipped",v:emailResult.skipped||0,col:C.muted},{l:L?"失敗":"Failed",v:(emailResult.errors||[]).length,col:C.red}]
+            .map(x=>React.createElement("div",{key:x.l,style:{background:`${x.col}0e`,border:`1px solid ${x.col}20`,borderRadius:8,padding:"10px",textAlign:"center"}},
+              React.createElement("div",{style:{fontSize:22,fontWeight:800,color:x.col}},x.v),
+              React.createElement("div",{style:{fontSize:9,color:C.muted}},x.l)
+            ))
+          ),
+          emailResult.errors&&emailResult.errors.length>0&&React.createElement("div",{style:{marginTop:10,background:`${C.red}08`,borderRadius:8,padding:10,fontSize:10,color:C.red}},
+            emailResult.errors.map((e,i)=>React.createElement("div",{key:i},e))
+          )
+        ),
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:8}},"📋 ",L?"寄信狀態":"Status"),
+          React.createElement("div",{style:{display:"flex",gap:8,marginBottom:10}},
+            React.createElement("span",{style:{...s.badge(C.green),fontSize:10}},L?"已寄":"Sent"," ",attendees.filter(a=>a.reminderSent).length),
+            React.createElement("span",{style:{...s.badge(C.muted),fontSize:10}},L?"未寄":"Pending"," ",attendees.filter(a=>!a.reminderSent).length)
+          ),
+          attendees.map(a=>React.createElement("div",{key:a.id,style:{display:"flex",alignItems:"center",gap:7,padding:"6px 0",borderBottom:`1px solid ${C.bdr}`}},
+            React.createElement("code",{style:{color:a.type==="vip"?VIP_COL:REG_COL,fontSize:8,minWidth:64}},a.checkInNo),
+            React.createElement("span",{style:{flex:1,fontSize:10}},lang==="zh"?a.name:a.nameEn||a.name),
+            React.createElement("span",{style:{...s.badge(a.reminderSent?C.green:C.muted),fontSize:8}},a.reminderSent?"✓":"—")
+          ))
+        )
+      ),
+
+                  tab==="logs"&&React.createElement("div",{style:s.card},
         React.createElement("div",{style:s.sTitle},"📝 ",t.auditLog),
         React.createElement("table",{style:{width:"100%",borderCollapse:"collapse"}},
           React.createElement("thead",null,React.createElement("tr",null,[t.time,t.actor,t.actType,t.target].map(h=>React.createElement("th",{key:h,style:s.th},h)))),
