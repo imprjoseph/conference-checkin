@@ -543,7 +543,7 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
               React.createElement("button",{style:s.btn("teal"),onClick:()=>{
                 const dlQR=(a)=>{
                   const data="CONF2025-"+a.checkInNo+"-"+a.email;
-                  const url="https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl="+encodeURIComponent(data)+"&choe=UTF-8&chld=M|2";
+                  const url="https://api.qrserver.com/v1/create-qr-code/?size=300x300&format=png&data="+encodeURIComponent(data);
                   const link=document.createElement("a");
                   link.href=url; link.download=a.checkInNo+".png"; link.target="_blank"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
                 };
