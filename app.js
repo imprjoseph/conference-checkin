@@ -218,22 +218,11 @@ const AGENDA={
 const nowStr = () => new Date().toLocaleString("zh-TW",{hour12:false});
 const fmtStr = (s,v) => s.replace(/\{(\w+)\}/g,(_,k)=>v[k]??_);
 
+// 產生真正可掃描的 QR Code URL（使用 api.qrserver.com）
+// 所有地方統一用此函式，確保掃描結果一致
 function makeQR(text, size=160) {
-  try {
-    const c=document.createElement("canvas"); c.width=c.height=size;
-    const ctx=c.getContext("2d");
-    ctx.fillStyle="#fff"; ctx.fillRect(0,0,size,size);
-    let h=0; for(let i=0;i<text.length;i++) h=((h<<5)-h+text.charCodeAt(i))|0;
-    const M=21,ms=Math.floor((size-28)/M),off=14;
-    const finder=(x,y)=>{ ctx.fillStyle="#0a0f1a"; ctx.fillRect(x,y,7*ms,7*ms); ctx.fillStyle="#fff"; ctx.fillRect(x+ms,y+ms,5*ms,5*ms); ctx.fillStyle="#0a0f1a"; ctx.fillRect(x+2*ms,y+2*ms,3*ms,3*ms); };
-    finder(off,off); finder(off+(M-7)*ms,off); finder(off,off+(M-7)*ms);
-    let s=Math.abs(h);
-    for(let r=0;r<M;r++) for(let col=0;col<M;col++){
-      const isFinder=(r<8&&col<8)||(r<8&&col>=M-8)||(r>=M-8&&col<8);
-      if(!isFinder){ s=(s*1664525+1013904223)|0; if((text.charCodeAt((r*M+col)%text.length)^(s>>>16))&1){ ctx.fillStyle="#0a0f1a"; ctx.fillRect(off+col*ms,off+r*ms,ms-1,ms-1); } }
-    }
-    return c.toDataURL();
-  } catch(e) { return ""; }
+  const normalized = text.trim().toLowerCase();
+  return "https://api.qrserver.com/v1/create-qr-code/?size=" + size + "x" + size + "&format=png&ecc=M&data=" + encodeURIComponent(normalized);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -540,15 +529,33 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
               React.createElement("button",{style:s.btn("amber"),onClick:()=>setAddStaffM(true)},"➕ ",t.addStaff),
               React.createElement("button",{style:s.btn("ghost"),onClick:()=>setImportM(true)},"📥 ",t.importData),
               React.createElement("button",{style:s.btn("ghost"),onClick:sendAllReminders},"📧 ",t.sendReminder),
-              React.createElement("button",{style:s.btn("teal"),onClick:()=>{
-                const dlQR=(a)=>{
-                  const data="CONF2025-"+a.checkInNo+"-"+a.email;
-                  const url="https://api.qrserver.com/v1/create-qr-code/?size=300x300&format=png&data="+encodeURIComponent(data);
-                  const link=document.createElement("a");
-                  link.href=url; link.download=a.checkInNo+".png"; link.target="_blank"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+              React.createElement("button",{style:s.btn("teal"),onClick:async()=>{
+                // 用 fetch + blob 下載，解決跨域問題
+                const dlQR=async(a)=>{
+                  // 格式必須與系統掃描完全一致：CONF2025-{checkInNo}-{email}
+                  const checkInNo=String(a.checkInNo).trim();
+                  const email=String(a.email).trim().toLowerCase();
+                  const data="CONF2025-"+checkInNo+"-"+email;
+                  const url="https://api.qrserver.com/v1/create-qr-code/?size=300x300&format=png&ecc=M&data="+encodeURIComponent(data);
+                  try{
+                    const res=await fetch(url);
+                    const blob=await res.blob();
+                    const blobUrl=URL.createObjectURL(blob);
+                    const link=document.createElement("a");
+                    link.href=blobUrl; link.download=a.checkInNo+".png";
+                    document.body.appendChild(link); link.click();
+                    document.body.removeChild(link);
+                    setTimeout(()=>URL.revokeObjectURL(blobUrl),1000);
+                  }catch(e){
+                    // fallback: 開新分頁
+                    window.open(url,"_blank");
+                  }
                 };
-                if(!window.confirm(L?`下載 ${attendees.length} 個 QR Code 圖片（每張間隔 0.5 秒）？\n\n瀏覽器詢問允許多重下載時請按「允許」`:`Download ${attendees.length} QR Code images?`)) return;
-                attendees.forEach((a,i)=>setTimeout(()=>dlQR(a),i*500));
+                if(!window.confirm(L?`下載 ${attendees.length} 個 QR Code 圖片（每張間隔 1 秒）？`:`Download ${attendees.length} QR Code images?`)) return;
+                for(let idx=0;idx<attendees.length;idx++){
+                  await new Promise(r=>setTimeout(r,idx===0?0:1000));
+                  await dlQR(attendees[idx]);
+                }
               }},L?"⬇ QR Code 全下載":"⬇ Download QR Codes"),
               React.createElement("button",{style:s.btn("ghost"),onClick:()=>setTab("logs")},"📝 ",t.auditLog)
             )
@@ -988,7 +995,7 @@ Language: ${emailLang==="both"?"Bilingual":emailLang==="zh"?"Chinese":"English"}
             :React.createElement("div",{style:{...s.badge(REG_COL),fontSize:11,marginBottom:8}},"🎫 ",t.regular),
           React.createElement("div",{style:{fontWeight:800,fontSize:15,marginBottom:2}},nOf(detailM)),
           React.createElement("div",{style:{fontSize:9,color:C.muted,marginBottom:12}},detailM.org),
-          React.createElement("img",{src:makeQR(`CONF2025-${detailM.checkInNo}-${detailM.email}`,160),alt:"QR",style:{width:160,height:160,borderRadius:10,border:`2px solid ${ac(detailM)}30`}}),
+          React.createElement("img",{src:makeQR(`CONF2025-${detailM.checkInNo}-${String(detailM.email).trim().toLowerCase()}`,160),alt:"QR",style:{width:160,height:160,borderRadius:10,border:`2px solid ${ac(detailM)}30`}}),
           React.createElement("div",{style:{marginTop:8}},React.createElement("code",{style:{color:ac(detailM),fontSize:17,fontWeight:800}},detailM.checkInNo))
         )
       )
@@ -1116,7 +1123,7 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
   const {show,Notif}=useNotif();
   const t=T[lang]; const s=mkS(STAFF_COL); const L=lang==="zh";
 
-  const findA=q=>attendees.find(a=>(`CONF2025-${a.checkInNo}-${a.email}`)===q.trim()||a.checkInNo===q.trim());
+  const findA=q=>{const qt=q.trim();return attendees.find(a=>`CONF2025-${a.checkInNo}-${String(a.email).trim().toLowerCase()}`===qt.toLowerCase()||`CONF2025-${a.checkInNo}-${String(a.email).trim()}`===qt||a.checkInNo===qt);};
   const attCol=a=>a&&a.type==="vip"?VIP_COL:REG_COL;
   const nOf=a=>L?a.name:a.nameEn||a.name;
 
@@ -1324,7 +1331,7 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
             ),
             React.createElement("span",{style:{...s.badge(attCol(qRes)),marginLeft:"auto"}},qRes.type==="vip"?t.vip:t.regular)
           ),
-          React.createElement("img",{src:makeQR(`CONF2025-${qRes.checkInNo}-${qRes.email}`,120),alt:"QR",style:{width:120,height:120,borderRadius:8,border:`1px solid ${attCol(qRes)}30`,display:"block",margin:"0 auto 12px"}}),
+          React.createElement("img",{src:makeQR(`CONF2025-${qRes.checkInNo}-${String(qRes.email).trim().toLowerCase()}`,120),alt:"QR",style:{width:120,height:120,borderRadius:8,border:`1px solid ${attCol(qRes)}30`,display:"block",margin:"0 auto 12px"}}),
           React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
             ...(()=>[
               {l:`${t.day1} ${t.signIn}`,v:qRes["day1"]&&qRes["day1"].ci?`✓ ${qRes["day1"].ciT}`:L?"未報到":"Not CI",col:qRes["day1"]&&qRes["day1"].ci?C.green:C.muted},
@@ -1382,7 +1389,7 @@ function AttendeeView({user,attendees,lang,setLang,onLogout}){
     )
   );
 
-  const qrData=`CONF2025-${me.checkInNo}-${me.email}`;
+  const qrData=`CONF2025-${me.checkInNo}-${String(me.email).trim().toLowerCase()}`;
   const Pill=({active,col,onClick,children})=>React.createElement("button",{onClick,style:{padding:"4px 11px",background:active?`${col}18`:"transparent",border:`1px solid ${active?col:C.bdr}`,color:active?col:C.muted,borderRadius:99,fontSize:9,fontWeight:700,fontFamily:"inherit"}},children);
 
   return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Noto Sans TC','Noto Sans',sans-serif",display:"flex",flexDirection:"column",maxWidth:480,margin:"0 auto"}},
