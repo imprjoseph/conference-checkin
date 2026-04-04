@@ -1017,7 +1017,20 @@ function QRScanner({onResult,onClose,lang,title}){
   const [err,setErr]=useState("");
   const [lastMsg,setLastMsg]=useState("");
   const [msgType,setMsgType]=useState("ok");
+  const [ready,setReady]=useState(false);
   const L=lang==="zh";
+
+  // Load jsQR from CDN dynamically
+  const jsQRRef=useRef(null);
+  React.useEffect(()=>{
+    if(window.jsQR){jsQRRef.current=window.jsQR;setReady(true);return;}
+    const script=document.createElement("script");
+    script.src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+    script.onload=()=>{jsQRRef.current=window.jsQR;setReady(true);};
+    script.onerror=()=>setErr(L?"無法載入掃描模組，請確認網路連線":"Cannot load scanner module");
+    document.head.appendChild(script);
+    return()=>{};
+  },[]);
 
   const stopCamera=()=>{
     if(rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -1037,76 +1050,68 @@ function QRScanner({onResult,onClose,lang,title}){
         scanLoop();
       }
     }catch(e){
-      setErr(L?"無法開啟鏡頭，請確認已授權相機權限":"Cannot open camera. Please allow camera permission.");
+      setErr(L?"無法開啟鏡頭，請確認已授權相機權限":"Cannot open camera - please allow camera permission");
     }
   };
 
+  React.useEffect(()=>{
+    if(ready) startCamera();
+    return()=>stopCamera();
+  },[ready]);
+
   const scanLoop=()=>{
     const video=videoRef.current;
-    if(!video||!streamRef.current) return;
-    if(video.readyState===video.HAVE_ENOUGH_DATA && !cooldownRef.current){
+    if(!video||!streamRef.current){return;}
+    if(video.readyState===video.HAVE_ENOUGH_DATA && !cooldownRef.current && jsQRRef.current){
       const canvas=document.createElement("canvas");
-      canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+      canvas.width=video.videoWidth;
+      canvas.height=video.videoHeight;
       const ctx=canvas.getContext("2d");
       ctx.drawImage(video,0,0,canvas.width,canvas.height);
-      if("BarcodeDetector" in window){
-        const bd=new BarcodeDetector({formats:["qr_code"]});
-        bd.detect(canvas).then(codes=>{
-          if(codes.length>0 && !cooldownRef.current){
-            cooldownRef.current=true;
-            // 呼叫 onResult，取得回傳訊息後顯示
-            const msg=onResult(codes[0].rawValue);
-            if(msg){
-              setLastMsg(msg.text||"");
-              setMsgType(msg.type||"ok");
-            }
-            // 1.5 秒後可再掃下一個
-            setTimeout(()=>{ cooldownRef.current=false; },1500);
-          }
-        }).catch(()=>{});
+      const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+      const code=jsQRRef.current(imageData.data,imageData.width,imageData.height,{inversionAttempts:"dontInvert"});
+      if(code && !cooldownRef.current){
+        cooldownRef.current=true;
+        const msg=onResult(code.data);
+        if(msg){setLastMsg(msg.text||"");setMsgType(msg.type||"ok");}
+        setTimeout(()=>{cooldownRef.current=false;setLastMsg("");},2000);
       }
     }
     rafRef.current=requestAnimationFrame(scanLoop);
   };
 
-  React.useEffect(()=>{ startCamera(); return ()=>stopCamera(); },[]);
-
   const msgBg={ok:"rgba(34,197,94,0.92)",warn:"rgba(245,158,11,0.92)",error:"rgba(239,68,68,0.92)"};
 
   return React.createElement("div",{style:{position:"fixed",inset:0,background:"#000",zIndex:500,display:"flex",flexDirection:"column"}},
-    // Header
     React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"rgba(0,0,0,0.85)"}},
       React.createElement("span",{style:{color:"#fff",fontWeight:700,fontSize:14}},title||(L?"連續掃描 QR Code":"Continuous QR Scan")),
       React.createElement("button",{onClick:()=>{stopCamera();onClose();},style:{background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",borderRadius:8,padding:"7px 16px",fontSize:12,fontWeight:700,fontFamily:"inherit"}},L?"完成":"Done")
     ),
-    // Video
     React.createElement("div",{style:{flex:1,position:"relative",overflow:"hidden"}},
+      !ready&&React.createElement("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}},
+        React.createElement("div",{style:{width:32,height:32,border:"3px solid #333",borderTopColor:"#E8710A",borderRadius:"50%",animation:"spin 1s linear infinite"}}),
+        React.createElement("span",{style:{color:"#888",fontSize:12}},L?"載入掃描模組中…":"Loading scanner…")
+      ),
       React.createElement("video",{ref:videoRef,style:{width:"100%",height:"100%",objectFit:"cover"},playsInline:true,muted:true}),
       // Scan frame
       React.createElement("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}},
-        React.createElement("div",{style:{position:"relative",width:230,height:230}},
-          // Corner borders - top-left
-          React.createElement("div",{style:{position:"absolute",width:36,height:36,top:0,left:0,borderTop:"3px solid #E8710A",borderLeft:"3px solid #E8710A",borderRadius:"8px 0 0 0"}}),
-          // top-right
-          React.createElement("div",{style:{position:"absolute",width:36,height:36,top:0,right:0,borderTop:"3px solid #E8710A",borderRight:"3px solid #E8710A",borderRadius:"0 8px 0 0"}}),
-          // bottom-left
-          React.createElement("div",{style:{position:"absolute",width:36,height:36,bottom:0,left:0,borderBottom:"3px solid #E8710A",borderLeft:"3px solid #E8710A",borderRadius:"0 0 0 8px"}}),
-          // bottom-right
-          React.createElement("div",{style:{position:"absolute",width:36,height:36,bottom:0,right:0,borderBottom:"3px solid #E8710A",borderRight:"3px solid #E8710A",borderRadius:"0 0 8px 0"}}),
-          // Dim overlay outside box
+        React.createElement("div",{style:{position:"relative",width:240,height:240}},
+          React.createElement("div",{style:{position:"absolute",width:40,height:40,top:0,left:0,borderTop:"3px solid #E8710A",borderLeft:"3px solid #E8710A",borderRadius:"8px 0 0 0"}}),
+          React.createElement("div",{style:{position:"absolute",width:40,height:40,top:0,right:0,borderTop:"3px solid #E8710A",borderRight:"3px solid #E8710A",borderRadius:"0 8px 0 0"}}),
+          React.createElement("div",{style:{position:"absolute",width:40,height:40,bottom:0,left:0,borderBottom:"3px solid #E8710A",borderLeft:"3px solid #E8710A",borderRadius:"0 0 0 8px"}}),
+          React.createElement("div",{style:{position:"absolute",width:40,height:40,bottom:0,right:0,borderBottom:"3px solid #E8710A",borderRight:"3px solid #E8710A",borderRadius:"0 0 8px 0"}}),
           React.createElement("div",{style:{position:"fixed",inset:0,boxShadow:"0 0 0 2000px rgba(0,0,0,0.55)",pointerEvents:"none"}})
         )
       ),
-      // Result message (shows after each scan)
-      lastMsg&&React.createElement("div",{style:{position:"absolute",top:16,left:16,right:16,background:msgBg[msgType]||msgBg.ok,color:"#fff",borderRadius:10,padding:"10px 14px",fontSize:13,fontWeight:700,textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,0.4)"}},lastMsg),
+      // Result message
+      lastMsg&&React.createElement("div",{style:{position:"absolute",top:16,left:16,right:16,background:msgBg[msgType]||msgBg.ok,color:"#fff",borderRadius:10,padding:"12px 16px",fontSize:14,fontWeight:700,textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,0.4)"}},lastMsg),
       // Hint
       React.createElement("div",{style:{position:"absolute",bottom:24,left:0,right:0,textAlign:"center"}},
-        React.createElement("span",{style:{background:"rgba(0,0,0,0.6)",color:"rgba(255,255,255,0.85)",fontSize:10,borderRadius:99,padding:"5px 14px"}},
-          L?"對準框框，自動辨識，可連續掃描":"Auto scan – keep scanning continuously"
+        React.createElement("span",{style:{background:"rgba(0,0,0,0.6)",color:"rgba(255,255,255,0.85)",fontSize:11,borderRadius:99,padding:"5px 16px"}},
+          L?"對準框框，自動辨識":"Align QR Code in the frame"
         )
       )
     ),
-    // Camera error
     err&&React.createElement("div",{style:{background:"rgba(239,68,68,0.9)",color:"#fff",padding:"12px 16px",fontSize:12,textAlign:"center",fontWeight:600}},err)
   );
 }
