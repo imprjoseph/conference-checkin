@@ -368,6 +368,11 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
   const [emailResult,setEmailResult]=useState(null);
   const [emailEventInfo,setEmailEventInfo]=useState({nameZh:"2025 年度科技論壇",nameEn:"2025 Tech Forum",date:"2025-11-15",venue:"台北國際會議中心 / Taipei International Convention Center",senderName:"新動力公共關係顧問股份有限公司"});
   const [emailTmplZh,setEmailTmplZh]=useState("");
+  // 廣告設定
+  const [ads,setAds]=useState(()=>{
+    try{ return JSON.parse(localStorage.getItem("impr_ads")||"[]"); }catch(e){ return []; }
+  });
+  const saveAds=(newAds)=>{ setAds(newAds); try{localStorage.setItem("impr_ads",JSON.stringify(newAds));}catch(e){} };
   const [emailTmplEn,setEmailTmplEn]=useState("");
   const [showTmpl,setShowTmpl]=useState(false);
   const {show,Notif}=useNotif();
@@ -470,6 +475,7 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
     {id:"dashboard",ico:"📊",l:t.tabs.dashboard},
     {id:"attendees",ico:"👥",l:t.tabs.attendees},
     {id:"email",ico:"📧",l:L?"寄信":"Email"},
+    {id:"ads",ico:"📢",l:L?"廣告":"Ads"},
     {id:"staff",ico:"🏷️",l:t.tabs.staff},
     {id:"logs",ico:"📝",l:t.tabs.logs},
   ];
@@ -628,7 +634,75 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
         )
       ),
 
-      tab==="email"&&React.createElement("div",null,
+      tab==="ads"&&React.createElement("div",null,
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"📢 ",L?"廣告橫幅管理":"Ad Banner Management"),
+          React.createElement("p",{style:{fontSize:10,color:C.muted,marginBottom:14}},
+            L?"廣告將顯示在與會者票卡下方，可設定圖片與點擊連結。":"Ads appear below attendee tickets. Set image URL and click link."
+          ),
+          // Add new ad form
+          React.createElement("div",{style:{background:C.surf,borderRadius:10,padding:14,marginBottom:14}},
+            React.createElement("div",{style:{...s.sTitle,marginBottom:10,fontSize:10}},"➕ ",L?"新增廣告":"Add Ad"),
+            React.createElement("div",{style:{marginBottom:8}},
+              React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},L?"廣告圖片網址（建議 560×120px）":"Image URL (recommended 560×120px)"),
+              React.createElement("input",{id:"adImg",style:s.inp,placeholder:"https://example.com/ad.jpg"})
+            ),
+            React.createElement("div",{style:{marginBottom:8}},
+              React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},L?"點擊連結網址":"Click URL"),
+              React.createElement("input",{id:"adUrl",style:s.inp,placeholder:"https://advertiser.com"})
+            ),
+            React.createElement("div",{style:{marginBottom:10}},
+              React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},L?"廣告說明（替代文字）":"Alt Text"),
+              React.createElement("input",{id:"adAlt",style:s.inp,placeholder:L?"廣告說明":"Ad description"})
+            ),
+            React.createElement("button",{
+              style:{...s.btn("primary"),width:"100%",justifyContent:"center"},
+              onClick:()=>{
+                const img=document.getElementById("adImg").value.trim();
+                const url=document.getElementById("adUrl").value.trim();
+                const alt=document.getElementById("adAlt").value.trim();
+                if(!img){show(L?"請輸入圖片網址":"Please enter image URL","warn");return;}
+                const newAd={id:"ad"+Date.now(),img,url,alt:alt||"Ad"};
+                saveAds([...ads,newAd]);
+                document.getElementById("adImg").value="";
+                document.getElementById("adUrl").value="";
+                document.getElementById("adAlt").value="";
+                show(L?"廣告已新增":"Ad added");
+              }
+            },"➕ ",L?"新增廣告":"Add Ad")
+          ),
+          // Ad list
+          ads.length===0
+            ? React.createElement("p",{style:{color:C.muted,fontSize:11,textAlign:"center",padding:16}},L?"尚無廣告，請新增。":"No ads yet.")
+            : ads.map((ad,idx)=>React.createElement("div",{key:ad.id,style:{background:C.card,border:`1px solid ${C.bdr}`,borderRadius:10,padding:12,marginBottom:8}},
+                React.createElement("div",{style:{display:"flex",gap:10,alignItems:"center"}},
+                  React.createElement("img",{src:ad.img,alt:ad.alt,style:{width:120,height:32,objectFit:"cover",borderRadius:6,border:`1px solid ${C.bdr}`,background:C.surf}}),
+                  React.createElement("div",{style:{flex:1,minWidth:0}},
+                    React.createElement("div",{style:{fontSize:10,color:C.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},ad.alt),
+                    React.createElement("div",{style:{fontSize:9,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},ad.url||L?"（無連結）":"(no link)"),
+                  ),
+                  React.createElement("div",{style:{display:"flex",gap:6,flexShrink:0}},
+                    idx>0&&React.createElement("button",{onClick:()=>{const a=[...ads];[a[idx-1],a[idx]]=[a[idx],a[idx-1]];saveAds(a);},style:{...s.btn("ghost",true),padding:"4px 8px",fontSize:10}},"↑"),
+                    idx<ads.length-1&&React.createElement("button",{onClick:()=>{const a=[...ads];[a[idx],a[idx+1]]=[a[idx+1],a[idx]];saveAds(a);},style:{...s.btn("ghost",true),padding:"4px 8px",fontSize:10}},"↓"),
+                    React.createElement("button",{onClick:()=>{if(window.confirm(L?"確定刪除此廣告？":"Delete this ad?"))saveAds(ads.filter(a=>a.id!==ad.id));},style:{...s.btn("danger",true),padding:"4px 8px",fontSize:10}},"✕")
+                  )
+                )
+              ))
+        ),
+        // Preview
+        ads.length>0&&React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:10}},"👁 ",L?"預覽效果":"Preview"),
+          ...ads.map(ad=>React.createElement("div",{key:ad.id,style:{marginBottom:8}},
+            ad.url
+              ? React.createElement("a",{href:ad.url,target:"_blank",rel:"noopener noreferrer",style:{display:"block"}},
+                  React.createElement("img",{src:ad.img,alt:ad.alt,style:{width:"100%",borderRadius:8,display:"block"}})
+                )
+              : React.createElement("img",{src:ad.img,alt:ad.alt,style:{width:"100%",borderRadius:8,display:"block"}})
+          ))
+        )
+      ),
+
+            tab==="email"&&React.createElement("div",null,
         // Event info card
         React.createElement("div",{style:s.card},
           React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"⚙️ ",L?"活動資訊設定":"Event Info"),
@@ -764,7 +838,75 @@ Language: ${emailLang==="both"?"Bilingual":emailLang==="zh"?"Chinese":"English"}
         )
       ),
 
-      tab==="email"&&React.createElement("div",null,
+      tab==="ads"&&React.createElement("div",null,
+        React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"📢 ",L?"廣告橫幅管理":"Ad Banner Management"),
+          React.createElement("p",{style:{fontSize:10,color:C.muted,marginBottom:14}},
+            L?"廣告將顯示在與會者票卡下方，可設定圖片與點擊連結。":"Ads appear below attendee tickets. Set image URL and click link."
+          ),
+          // Add new ad form
+          React.createElement("div",{style:{background:C.surf,borderRadius:10,padding:14,marginBottom:14}},
+            React.createElement("div",{style:{...s.sTitle,marginBottom:10,fontSize:10}},"➕ ",L?"新增廣告":"Add Ad"),
+            React.createElement("div",{style:{marginBottom:8}},
+              React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},L?"廣告圖片網址（建議 560×120px）":"Image URL (recommended 560×120px)"),
+              React.createElement("input",{id:"adImg",style:s.inp,placeholder:"https://example.com/ad.jpg"})
+            ),
+            React.createElement("div",{style:{marginBottom:8}},
+              React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},L?"點擊連結網址":"Click URL"),
+              React.createElement("input",{id:"adUrl",style:s.inp,placeholder:"https://advertiser.com"})
+            ),
+            React.createElement("div",{style:{marginBottom:10}},
+              React.createElement("label",{style:{fontSize:9,color:C.muted,display:"block",marginBottom:3}},L?"廣告說明（替代文字）":"Alt Text"),
+              React.createElement("input",{id:"adAlt",style:s.inp,placeholder:L?"廣告說明":"Ad description"})
+            ),
+            React.createElement("button",{
+              style:{...s.btn("primary"),width:"100%",justifyContent:"center"},
+              onClick:()=>{
+                const img=document.getElementById("adImg").value.trim();
+                const url=document.getElementById("adUrl").value.trim();
+                const alt=document.getElementById("adAlt").value.trim();
+                if(!img){show(L?"請輸入圖片網址":"Please enter image URL","warn");return;}
+                const newAd={id:"ad"+Date.now(),img,url,alt:alt||"Ad"};
+                saveAds([...ads,newAd]);
+                document.getElementById("adImg").value="";
+                document.getElementById("adUrl").value="";
+                document.getElementById("adAlt").value="";
+                show(L?"廣告已新增":"Ad added");
+              }
+            },"➕ ",L?"新增廣告":"Add Ad")
+          ),
+          // Ad list
+          ads.length===0
+            ? React.createElement("p",{style:{color:C.muted,fontSize:11,textAlign:"center",padding:16}},L?"尚無廣告，請新增。":"No ads yet.")
+            : ads.map((ad,idx)=>React.createElement("div",{key:ad.id,style:{background:C.card,border:`1px solid ${C.bdr}`,borderRadius:10,padding:12,marginBottom:8}},
+                React.createElement("div",{style:{display:"flex",gap:10,alignItems:"center"}},
+                  React.createElement("img",{src:ad.img,alt:ad.alt,style:{width:120,height:32,objectFit:"cover",borderRadius:6,border:`1px solid ${C.bdr}`,background:C.surf}}),
+                  React.createElement("div",{style:{flex:1,minWidth:0}},
+                    React.createElement("div",{style:{fontSize:10,color:C.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},ad.alt),
+                    React.createElement("div",{style:{fontSize:9,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},ad.url||L?"（無連結）":"(no link)"),
+                  ),
+                  React.createElement("div",{style:{display:"flex",gap:6,flexShrink:0}},
+                    idx>0&&React.createElement("button",{onClick:()=>{const a=[...ads];[a[idx-1],a[idx]]=[a[idx],a[idx-1]];saveAds(a);},style:{...s.btn("ghost",true),padding:"4px 8px",fontSize:10}},"↑"),
+                    idx<ads.length-1&&React.createElement("button",{onClick:()=>{const a=[...ads];[a[idx],a[idx+1]]=[a[idx+1],a[idx]];saveAds(a);},style:{...s.btn("ghost",true),padding:"4px 8px",fontSize:10}},"↓"),
+                    React.createElement("button",{onClick:()=>{if(window.confirm(L?"確定刪除此廣告？":"Delete this ad?"))saveAds(ads.filter(a=>a.id!==ad.id));},style:{...s.btn("danger",true),padding:"4px 8px",fontSize:10}},"✕")
+                  )
+                )
+              ))
+        ),
+        // Preview
+        ads.length>0&&React.createElement("div",{style:s.card},
+          React.createElement("div",{style:{...s.sTitle,marginBottom:10}},"👁 ",L?"預覽效果":"Preview"),
+          ...ads.map(ad=>React.createElement("div",{key:ad.id,style:{marginBottom:8}},
+            ad.url
+              ? React.createElement("a",{href:ad.url,target:"_blank",rel:"noopener noreferrer",style:{display:"block"}},
+                  React.createElement("img",{src:ad.img,alt:ad.alt,style:{width:"100%",borderRadius:8,display:"block"}})
+                )
+              : React.createElement("img",{src:ad.img,alt:ad.alt,style:{width:"100%",borderRadius:8,display:"block"}})
+          ))
+        )
+      ),
+
+            tab==="email"&&React.createElement("div",null,
         React.createElement("div",{style:s.card},
           React.createElement("div",{style:{...s.sTitle,marginBottom:12}},"⚙️ ",L?"活動資訊":"Event Info"),
           ...(()=>[
@@ -1395,6 +1537,12 @@ function AttendeeView({user,attendees,lang,setLang,onLogout}){
   );
 
   const qrData=`CONF2025-${me.checkInNo}-${String(me.email).trim().toLowerCase()}`;
+
+  // 讀取廣告設定
+  const [attAds]=useState(()=>{
+    try{ return JSON.parse(localStorage.getItem("impr_ads")||"[]"); }catch(e){ return []; }
+  });
+
   const Pill=({active,col,onClick,children})=>React.createElement("button",{onClick,style:{padding:"4px 11px",background:active?`${col}18`:"transparent",border:`1px solid ${active?col:C.bdr}`,color:active?col:C.muted,borderRadius:99,fontSize:9,fontWeight:700,fontFamily:"inherit"}},children);
 
   return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Noto Sans TC','Noto Sans',sans-serif",display:"flex",flexDirection:"column",maxWidth:480,margin:"0 auto"}},
@@ -1437,6 +1585,17 @@ function AttendeeView({user,attendees,lang,setLang,onLogout}){
             React.createElement("span",{style:{fontWeight:600}},f.v)
           ))
         )
+      ),
+
+      // 廣告橫幅（顯示在票卡頁底部）
+      tab==="mycard"&&attAds.length>0&&React.createElement("div",{style:{padding:"0 0 14px"}},
+        attAds.map(ad=>React.createElement("div",{key:ad.id,style:{marginBottom:10}},
+          ad.url
+            ? React.createElement("a",{href:ad.url,target:"_blank",rel:"noopener noreferrer",style:{display:"block"}},
+                React.createElement("img",{src:ad.img,alt:ad.alt||"",style:{width:"100%",borderRadius:10,display:"block",boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}})
+              )
+            : React.createElement("img",{src:ad.img,alt:ad.alt||"",style:{width:"100%",borderRadius:10,display:"block",boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}})
+        ))
       ),
 
       tab==="status"&&React.createElement(React.Fragment,null,
