@@ -1270,7 +1270,7 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
   const {show,Notif}=useNotif();
   const t=T[lang]; const s=mkS(STAFF_COL); const L=lang==="zh";
 
-  const findA=q=>{const qt=q.trim();return attendees.find(a=>`CONF2025-${a.checkInNo}-${String(a.email).trim().toLowerCase()}`===qt.toLowerCase()||`CONF2025-${a.checkInNo}-${String(a.email).trim()}`===qt||a.checkInNo===qt);};
+  const findA=q=>{const qt=q.trim();const qtl=qt.toLowerCase();return attendees.find(a=>`CONF2025-${a.checkInNo}-${String(a.email).trim().toLowerCase()}`===qtl||`CONF2025-${a.checkInNo}-${String(a.email).trim()}`===qt||a.checkInNo===qt||String(a.email).trim().toLowerCase()===qtl);};
   const attCol=a=>a&&a.type==="vip"?VIP_COL:REG_COL;
   const nOf=a=>L?a.name:a.nameEn||a.name;
 
@@ -1465,8 +1465,8 @@ function StaffView({user,attendees,setAttendees,lang,setLang,onLogout}){
       mode==="query"&&React.createElement(React.Fragment,null,
         React.createElement("div",{style:s.card},
           React.createElement("div",{style:{display:"flex",gap:8}},
-            React.createElement("input",{style:s.inp,placeholder:t.queryPlaceholder,value:query,onChange:e=>setQuery(e.target.value),onKeyDown:e=>e.key==="Enter"&&(()=>{const a=attendees.find(x=>x.checkInNo===query||x.name.includes(query)||(x.nameEn||"").toLowerCase().includes(query.toLowerCase()));setQRes(a||null);if(!a)show(t.notFound,"error");})()}),
-            React.createElement("button",{style:s.btn("primary"),onClick:()=>{const a=attendees.find(x=>x.checkInNo===query||x.name.includes(query)||(x.nameEn||"").toLowerCase().includes(query.toLowerCase()));setQRes(a||null);if(!a)show(t.notFound,"error");}},t.search)
+            React.createElement("input",{style:s.inp,placeholder:t.queryPlaceholder,value:query,onChange:e=>setQuery(e.target.value),onKeyDown:e=>e.key==="Enter"&&(()=>{const qt=query.trim().toLowerCase();const a=attendees.find(x=>x.checkInNo===query.trim()||x.name.includes(query)||(x.nameEn||"").toLowerCase().includes(query.toLowerCase())||String(x.email).trim().toLowerCase()===qt);setQRes(a||null);if(!a)show(t.notFound,"error");})()}),
+            React.createElement("button",{style:s.btn("primary"),onClick:()=>{const qt=query.trim().toLowerCase();const a=attendees.find(x=>x.checkInNo===query.trim()||x.name.includes(query)||(x.nameEn||"").toLowerCase().includes(query.toLowerCase())||String(x.email).trim().toLowerCase()===qt);setQRes(a||null);if(!a)show(t.notFound,"error");}},t.search)
           )
         ),
         qRes&&React.createElement("div",{style:s.card},
