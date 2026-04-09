@@ -124,7 +124,7 @@ const T={
     vip:"貴賓 VIP",regular:"一般",
     tabs:{dashboard:"儀表板",attendees:"與會者",staff:"同仁管理",logs:"操作記錄"},
     staffTabs:{scan:"報到掃描",activity:"活動掃碼",query:"查詢"},
-    atTabs:{mycard:"我的票卡",status:"出席狀況",agenda:"議程"},
+    atTabs:{mycard:"我的票卡",status:"出席狀況",agenda:"議程",map:"場地地圖"},
     day1:"第一天",day2:"第二天",signIn:"報到",signOut:"簽退",
     checkedIn:"已報到",checkedOut:"已簽退",
     total:"總報名",vipCount:"貴賓",regCount:"一般",progress:"報到進度",
@@ -160,7 +160,7 @@ const T={
     vip:"VIP Guest",regular:"Regular",
     tabs:{dashboard:"Dashboard",attendees:"Attendees",staff:"Staff Mgmt",logs:"Audit Log"},
     staffTabs:{scan:"Check-in",activity:"Activity",query:"Query"},
-    atTabs:{mycard:"My Card",status:"My Status",agenda:"Agenda"},
+    atTabs:{mycard:"My Card",status:"My Status",agenda:"Agenda",map:"Venue Map"},
     day1:"Day 1",day2:"Day 2",signIn:"Check In",signOut:"Check Out",
     checkedIn:"Checked In",checkedOut:"Checked Out",
     total:"Total",vipCount:"VIP",regCount:"Regular",progress:"Check-in Progress",
@@ -368,11 +368,26 @@ function AdminView({user,secret,attendees,setAttendees,users,setUsers,logs,setLo
   const [emailResult,setEmailResult]=useState(null);
   const [emailEventInfo,setEmailEventInfo]=useState({nameZh:"2025 年度科技論壇",nameEn:"2025 Tech Forum",date:"2025-11-15",venue:"台北國際會議中心 / Taipei International Convention Center",senderName:"新動力公共關係顧問股份有限公司"});
   const [emailTmplZh,setEmailTmplZh]=useState("");
-  // 廣告設定
-  const [ads,setAds]=useState(()=>{
-    try{ return JSON.parse(localStorage.getItem("impr_ads")||"[]"); }catch(e){ return []; }
-  });
-  const saveAds=(newAds)=>{ setAds(newAds); try{localStorage.setItem("impr_ads",JSON.stringify(newAds));}catch(e){} };
+  // 廣告設定 — 從 GAS Sheet 讀取，確保跨裝置同步
+  const [ads,setAds]=useState([]);
+  const [adsLoaded,setAdsLoaded]=useState(false);
+  React.useEffect(()=>{
+    api("getAds",{secret}).then(res=>{
+      if(Array.isArray(res)) setAds(res);
+    }).catch(()=>{
+      // fallback to localStorage
+      try{ setAds(JSON.parse(localStorage.getItem("impr_ads")||"[]")); }catch(e){}
+    }).finally(()=>setAdsLoaded(true));
+  },[]);
+  const saveAds=async(newAds)=>{
+    setAds(newAds);
+    try{
+      await apiPost("saveAds",{ads:newAds});
+    }catch(e){
+      // fallback localStorage
+      try{localStorage.setItem("impr_ads",JSON.stringify(newAds));}catch(e2){}
+    }
+  };
   const [emailTmplEn,setEmailTmplEn]=useState("");
   const [showTmpl,setShowTmpl]=useState(false);
   const {show,Notif}=useNotif();
@@ -1522,11 +1537,45 @@ function AttendeeView({user,attendees,lang,setLang,onLogout}){
   const t=T[lang]; const L=lang==="zh";
   const [tab,setTab]=useState("mycard");
   const [agendaDay,setAgendaDay]=useState("day1");
+  const [activeRoom,setActiveRoom]=useState(null); // 地圖點擊動畫
+  const [animRoom,setAnimRoom]=useState(null);     // 正在動畫的 room id
 
   const isVip=me&&me.type==="vip";
   const accent=isVip?VIP_COL:REG_COL;
   const s=mkS(accent);
   const typeColors={keynote:C.blue,session_t:C.green,workshop:C.amber,breakTime:C.muted};
+
+  // 廣告從 GAS 讀取（跨裝置同步）
+  const [attAds,setAttAds]=useState([]);
+  React.useEffect(()=>{
+    api("getAds",{secret:""}).then(res=>{
+      if(Array.isArray(res)) setAttAds(res);
+    }).catch(()=>{
+      try{ setAttAds(JSON.parse(localStorage.getItem("impr_ads")||"[]")); }catch(e){}
+    });
+  },[]);
+
+  // 會議室地圖資料（可依實際場地調整）
+  const ROOMS=[
+    {id:"lobby",  ico:"🚪", zh:"一樓大廳",   en:"1F Lobby",        floor:"1F", desc:{zh:"報到處・茶點區",en:"Registration・Refreshments"}, col:C.teal,
+     map:{x:50,y:80,w:180,h:60}},
+    {id:"hallA",  ico:"🎤", zh:"主會場 A 廳",en:"Main Hall A",      floor:"2F", desc:{zh:"主題演講・開幕典禮",en:"Keynote・Opening Ceremony"}, col:C.blue,
+     map:{x:20,y:20,w:150,h:100}},
+    {id:"hallB",  ico:"💬", zh:"B 廳",        en:"Hall B",          floor:"2F", desc:{zh:"論壇・平行會議",en:"Forum・Parallel Sessions"}, col:C.green,
+     map:{x:180,y:20,w:100,h:100}},
+    {id:"hallD",  ico:"🛠", zh:"D 廳",        en:"Hall D",          floor:"3F", desc:{zh:"工作坊",en:"Workshop"}, col:C.amber,
+     map:{x:20,y:20,w:120,h:80}},
+    {id:"banquet",ico:"🍱", zh:"三樓宴會廳", en:"3F Banquet Hall", floor:"3F", desc:{zh:"午餐・伴手禮領取",en:"Lunch・Gift Collection"}, col:C.pink,
+     map:{x:150,y:20,w:140,h:80}},
+    {id:"exhibit", ico:"🏪",zh:"展覽廳",      en:"Exhibition Hall", floor:"2F", desc:{zh:"攤位・海報展示",en:"Booths・Poster Display"}, col:C.violet,
+     map:{x:180,y:130,w:100,h:60}},
+  ];
+
+  const handleRoomClick=(id)=>{
+    setActiveRoom(id);
+    setAnimRoom(id);
+    setTimeout(()=>setAnimRoom(null),600);
+  };
 
   if(!me) return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,color:C.text,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Noto Sans TC',sans-serif"}},
     React.createElement("div",{style:{textAlign:"center"}},
@@ -1538,17 +1587,12 @@ function AttendeeView({user,attendees,lang,setLang,onLogout}){
 
   const qrData=`CONF2025-${me.checkInNo}-${String(me.email).trim().toLowerCase()}`;
 
-  // 讀取廣告設定
-  const [attAds]=useState(()=>{
-    try{ return JSON.parse(localStorage.getItem("impr_ads")||"[]"); }catch(e){ return []; }
-  });
-
   const Pill=({active,col,onClick,children})=>React.createElement("button",{onClick,style:{padding:"4px 11px",background:active?`${col}18`:"transparent",border:`1px solid ${active?col:C.bdr}`,color:active?col:C.muted,borderRadius:99,fontSize:9,fontWeight:700,fontFamily:"inherit"}},children);
 
   return React.createElement("div",{style:{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'Noto Sans TC','Noto Sans',sans-serif",display:"flex",flexDirection:"column",maxWidth:480,margin:"0 auto"}},
     React.createElement(Header,{lang,setLang,onLogout,accent,roleLabel:isVip?t.vip:t.regular,t}),
     React.createElement("div",{style:{display:"flex",background:C.surf,borderBottom:`1px solid ${C.bdr}`,flexShrink:0}},
-      [{id:"mycard",ico:isVip?"👑":"🎫",l:t.atTabs.mycard},{id:"status",ico:"📊",l:t.atTabs.status},{id:"agenda",ico:"📅",l:t.atTabs.agenda}].map(tb=>
+      [{id:"mycard",ico:isVip?"👑":"🎫",l:t.atTabs.mycard},{id:"status",ico:"📊",l:t.atTabs.status},{id:"agenda",ico:"📅",l:t.atTabs.agenda},{id:"map",ico:"🗺️",l:t.atTabs.map}].map(tb=>
         React.createElement("button",{key:tb.id,onClick:()=>setTab(tb.id),style:{flex:1,padding:"10px 4px",background:"none",border:"none",color:tab===tb.id?accent:C.muted,borderBottom:`2px solid ${tab===tb.id?accent:"transparent"}`,fontSize:9,fontWeight:700,fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2}},
           React.createElement("span",{style:{fontSize:16}},tb.ico),tb.l
         )
@@ -1651,6 +1695,140 @@ function AttendeeView({user,attendees,lang,setLang,onLogout}){
             )
           );
         })
+      ),
+
+      tab==="map"&&React.createElement(React.Fragment,null,
+        // 說明標題
+        React.createElement("div",{style:{...s.card,marginBottom:10}},
+          React.createElement("div",{style:{fontSize:12,fontWeight:800,marginBottom:4}},L?"📍 場地指引":"📍 Venue Guide"),
+          React.createElement("div",{style:{fontSize:10,color:C.muted}},L?"點擊會議室查看詳細位置與說明":"Tap a room to highlight and see details")
+        ),
+
+        // 會議室清單（超過1間才顯示清單）
+        ROOMS.length>1&&React.createElement("div",{style:{marginBottom:10}},
+          React.createElement("div",{style:{fontSize:9,color:C.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}},L?"所有會議室":"All Rooms"),
+          React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6}},
+            ROOMS.map(room=>React.createElement("button",{
+              key:room.id,
+              onClick:()=>handleRoomClick(room.id),
+              style:{
+                display:"flex",alignItems:"center",gap:10,
+                background:activeRoom===room.id?`${room.col}18`:C.card,
+                border:`2px solid ${activeRoom===room.id?room.col:C.bdr}`,
+                borderRadius:10,padding:"10px 14px",cursor:"pointer",
+                fontFamily:"inherit",textAlign:"left",
+                transform:animRoom===room.id?"scale(1.03)":"scale(1)",
+                transition:"transform 0.15s ease, border-color 0.2s, background 0.2s",
+                boxShadow:activeRoom===room.id?`0 0 0 3px ${room.col}22`:"none",
+              }
+            },
+              React.createElement("span",{style:{
+                fontSize:22,
+                display:"inline-block",
+                transform:animRoom===room.id?"rotate(-10deg) scale(1.2)":"rotate(0deg) scale(1)",
+                transition:"transform 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+              }},room.ico),
+              React.createElement("div",{style:{flex:1}},
+                React.createElement("div",{style:{
+                  fontSize:12,fontWeight:700,
+                  color:activeRoom===room.id?room.col:C.text,
+                  transition:"color 0.2s"
+                }},L?room.zh:room.en),
+                React.createElement("div",{style:{fontSize:9,color:C.muted,marginTop:1}},
+                  React.createElement("span",{style:{background:`${room.col}20`,color:room.col,borderRadius:4,padding:"1px 6px",fontSize:8,fontWeight:700,marginRight:5}},room.floor),
+                  L?room.desc.zh:room.desc.en
+                )
+              ),
+              activeRoom===room.id&&React.createElement("span",{style:{color:room.col,fontSize:14,fontWeight:700}},L?"◀":"◀")
+            ))
+          )
+        ),
+
+        // 平面圖（SVG 互動地圖）
+        activeRoom&&(()=>{
+          const floor=ROOMS.find(r=>r.id===activeRoom)?.floor;
+          const floorRooms=ROOMS.filter(r=>r.floor===floor);
+          const selectedRoom=ROOMS.find(r=>r.id===activeRoom);
+          return React.createElement("div",{style:{...s.card,border:`2px solid ${selectedRoom?.col}40`}},
+            React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+              React.createElement("div",{style:{fontSize:11,fontWeight:700}},L?`${floor} 平面圖`:`${floor} Floor Plan`),
+              React.createElement("button",{onClick:()=>{setActiveRoom(null);},style:{...s.btn("ghost",true),fontSize:9}},L?"關閉":"Close")
+            ),
+            // SVG 平面圖
+            React.createElement("svg",{
+              viewBox:"0 0 300 220",width:"100%",
+              style:{background:"#0a1018",borderRadius:8,border:`1px solid ${C.bdr}`,display:"block",marginBottom:10}
+            },
+              // 地板底色
+              React.createElement("rect",{x:10,y:10,width:280,height:200,rx:8,fill:"#0d1520",stroke:C.bdr,strokeWidth:1}),
+              // 走廊
+              React.createElement("rect",{x:10,y:100,width:280,height:20,fill:"#0c1828",opacity:0.8}),
+              React.createElement("text",{x:150,y:113,fill:C.muted,fontSize:7,textAnchor:"middle",fontFamily:"sans-serif"},L?"走廊":"Corridor"),
+              // 渲染各會議室
+              ...floorRooms.map(room=>{
+                const isActive=room.id===activeRoom;
+                const isAnim=room.id===animRoom;
+                return React.createElement("g",{key:room.id,
+                  style:{cursor:"pointer"},
+                  onClick:()=>handleRoomClick(room.id)
+                },
+                  React.createElement("rect",{
+                    x:room.map.x,y:room.map.y,
+                    width:room.map.w,height:room.map.h,
+                    rx:6,
+                    fill:isActive?`${room.col}30`:`${room.col}10`,
+                    stroke:isActive?room.col:`${room.col}50`,
+                    strokeWidth:isActive?2:1,
+                    style:{transition:"all 0.2s"}
+                  }),
+                  React.createElement("text",{
+                    x:room.map.x+room.map.w/2,
+                    y:room.map.y+room.map.h/2-5,
+                    fill:isActive?room.col:`${room.col}90`,
+                    fontSize:isActive?9:8,
+                    fontWeight:isActive?"bold":"normal",
+                    textAnchor:"middle",
+                    fontFamily:"sans-serif",
+                    style:{transition:"all 0.2s"}
+                  },room.ico+" "+(L?room.zh:room.en)),
+                  React.createElement("text",{
+                    x:room.map.x+room.map.w/2,
+                    y:room.map.y+room.map.h/2+10,
+                    fill:`${room.col}70`,fontSize:7,
+                    textAnchor:"middle",fontFamily:"sans-serif"
+                  },room.floor),
+                  // 選中時閃爍框
+                  isActive&&React.createElement("rect",{
+                    x:room.map.x-2,y:room.map.y-2,
+                    width:room.map.w+4,height:room.map.h+4,
+                    rx:8,fill:"none",
+                    stroke:room.col,strokeWidth:1.5,
+                    strokeDasharray:"4 3",
+                    style:{animation:"dash 1s linear infinite"}
+                  })
+                );
+              }),
+              // 入口標示
+              React.createElement("text",{x:150,y:205,fill:C.muted,fontSize:7,textAnchor:"middle",fontFamily:"sans-serif"},L?"▼ 電梯 / 樓梯":"▼ Elevator / Stairs")
+            ),
+            // 選中房間詳細資訊
+            selectedRoom&&React.createElement("div",{style:{
+              background:`${selectedRoom.col}10`,
+              border:`1px solid ${selectedRoom.col}30`,
+              borderRadius:8,padding:"10px 14px",
+              display:"flex",alignItems:"center",gap:10
+            }},
+              React.createElement("span",{style:{fontSize:28}},selectedRoom.ico),
+              React.createElement("div",null,
+                React.createElement("div",{style:{fontWeight:800,fontSize:13,color:selectedRoom.col}},L?selectedRoom.zh:selectedRoom.en),
+                React.createElement("div",{style:{fontSize:10,color:C.muted,marginTop:2}},
+                  React.createElement("span",{style:{background:`${selectedRoom.col}20`,color:selectedRoom.col,borderRadius:4,padding:"1px 6px",fontSize:9,fontWeight:700,marginRight:6}},selectedRoom.floor),
+                  L?selectedRoom.desc.zh:selectedRoom.desc.en
+                )
+              )
+            )
+          );
+        })()
       )
     )
   );
@@ -1707,3 +1885,22 @@ function App(){
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+
+// 注入 CSS 動畫（SVG dash 動畫 + 房間 pulse）
+(function(){
+  if(document.getElementById("impr-anim-style")) return;
+  const style=document.createElement("style");
+  style.id="impr-anim-style";
+  style.textContent=`
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes slideIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes dash { to { stroke-dashoffset: -14; } }
+    @keyframes roomPulse {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.05) rotate(-2deg); }
+      60%  { transform: scale(0.97) rotate(1deg); }
+      100% { transform: scale(1); }
+    }
+  `;
+  document.head.appendChild(style);
+})();
